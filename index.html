@@ -1,1 +1,456 @@
-wert
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <title>X-CONECT | FORD FUSION</title>
+    <style>
+        :root { --neon: #00ffaa; --bg: #050505; --panel: #0a0a0a; --border: #1a1a1a; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Segoe UI', Roboto, sans-serif; text-align: center; margin: 0; padding: 0; user-select: none; overflow-x: hidden; }
+        
+        .tab-content { display: none; padding: 15px; padding-bottom: 110px; animation: fadeUp 0.3s ease-out; }
+        .active-tab { display: block; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .status-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #020202; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #666; }
+        .link-indicator { display: flex; align-items: center; gap: 8px; }
+        .circle { width: 10px; height: 10px; border-radius: 50%; }
+        .online { background: #00ff66; box-shadow: 0 0 10px #00ff66; }
+        .offline { background: #ff3333; box-shadow: 0 0 10px #ff3333; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+        .full-width { grid-column: span 2; }
+        .box { background: linear-gradient(145deg, #0d0d0d, #030303); border: 1px solid var(--border); padding: 18px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 10px 20px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
+        .box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(0,255,170,0.2), transparent); }
+        .box-title { font-size: 10px; color: #777; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+        .val { font-size: 40px; font-weight: 900; color: #fff; margin: 0; line-height: 1; text-shadow: 0 0 15px rgba(255,255,255,0.1); }
+        .unit { font-size: 14px; color: var(--neon); font-weight: 600; margin-left: 4px; }
+        
+        .speed-box .val { font-size: 65px; color: var(--neon); text-shadow: 0 0 20px rgba(0,255,170,0.3); }
+        
+        .btn-panel { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .btn { padding: 16px; border: none; border-radius: 16px; cursor: pointer; flex: 1; min-width: 60px; font-weight: 800; font-size: 13px; letter-spacing: 1px; color: #fff; transition: 0.2s; text-transform: uppercase; }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+        .icon-btn { width: 28px; height: 28px; fill: #fff; }
+        
+        .btn-voice { background: linear-gradient(145deg, #2a004d, #140026); border: 1px solid #aa00ff; color: #e0b0ff; width: 100%; font-size: 15px; text-shadow: 0 0 10px #aa00ff; padding: 20px; box-shadow: 0 5px 20px rgba(170,0,255,0.15); margin-bottom: 15px; }
+        .btn-blue { background: linear-gradient(145deg, #0055ff, #0033aa); box-shadow: 0 4px 0 #002277; }
+        .btn-dark { background: linear-gradient(145deg, #1a1a1a, #0a0a0a); border: 1px solid #333; box-shadow: 0 4px 0 #000; }
+        .btn-red { background: linear-gradient(145deg, #ff3333, #cc0000); box-shadow: 0 4px 0 #770000; }
+        .btn-green { background: linear-gradient(145deg, #00cc66, #009944); box-shadow: 0 4px 0 #005522; }
+        .btn-purple { background: linear-gradient(145deg, #b300ff, #8800cc); box-shadow: 0 4px 0 #440077; }
+        .btn-cyan { background: linear-gradient(145deg, #00cccc, #009999); box-shadow: 0 4px 0 #005555; }
+        .btn-orange { background: linear-gradient(145deg, #ffaa00, #cc8800); box-shadow: 0 4px 0 #996600; color:#000; }
+
+        .cmd-input { background: #0a0a0a; color: var(--neon); border: 1px solid #222; padding: 18px; margin: 8px 0; font-family: inherit; width: 100%; box-sizing: border-box; border-radius: 14px; outline: none; font-size: 15px; font-weight: 600; transition: 0.3s; }
+        .cmd-input:focus { border-color: var(--neon); background: #000; }
+        .cmd-item { border: 1px solid #1a1a1a; padding: 16px; margin-top: 12px; border-radius: 16px; background: #070707; text-align: left; box-shadow: 0 5px 10px rgba(0,0,0,0.3); }
+        .cmd-item span { display: block; margin-bottom: 6px; color: #888; font-size: 13px; }
+        .cmd-item b { color: #fff; }
+        .del-btn { background: rgba(255,51,51,0.1); color: #ff3333; border: 1px solid rgba(255,51,51,0.3); padding: 12px; width: 100%; margin-top: 10px; font-weight: bold; border-radius: 10px; cursor: pointer; }
+
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #030303; border-top: 1px solid #151515; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+        .nav-item { color: #555; display: flex; flex-direction: column; align-items: center; width: 25%; cursor: pointer; transition: 0.3s; }
+        .nav-item svg { width: 24px; height: 24px; fill: currentColor; margin-bottom: 4px; }
+        .nav-item.active { color: var(--neon); }
+        .nav-item.active svg { filter: drop-shadow(0 0 8px var(--neon)); }
+        .nav-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+        
+        .sys-color { height: 50px; border-radius: 12px; font-size: 12px; flex: 1 1 30%; font-weight: 900; }
+    </style>
+</head>
+<body>
+
+    <div class="status-bar">
+        <div class="link-indicator">
+            <div id="status-circle" class="circle offline"></div>
+            <span id="status-text">СИСТЕМА OFFLINE</span>
+        </div>
+        <div id="baud-rate">--- кбод</div>
+    </div>
+
+    <div id="tab-dash" class="tab-content active-tab">
+        <button class="btn btn-voice" id="mic-btn" onclick="startVoice()">
+            <svg style="width:24px;height:24px;fill:currentColor;vertical-align:middle;margin-right:8px;" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+            <span id="mic-text">АКСА: ОЖИДАНИЕ КОМАНДЫ</span>
+        </button>
+
+        <div class="dash-grid">
+            <div class="box full-width speed-box">
+                <div class="box-title">СКОРОСТЬ (GPS)</div>
+                <div class="val"><span id="speed">0</span><span class="unit"> км/ч</span></div>
+            </div>
+            <div class="box">
+                <div class="box-title">ОБОРОТЫ</div>
+                <div class="val" id="rpm">0</div>
+            </div>
+            <div class="box">
+                <div class="box-title">ОЖ</div>
+                <div class="val"><span id="temp">--</span><span class="unit">°C</span></div>
+            </div>
+            <div class="box">
+                <div class="box-title">БАК</div>
+                <div class="val"><span id="fuel">--</span><span class="unit"> Л</span></div>
+            </div>
+            <div class="box">
+                <div class="box-title">ОДОМЕТР</div>
+                <div class="val" style="font-size:32px;"><span id="mileage">--</span><span class="unit"> км</span></div>
+            </div>
+        </div>
+        
+        <div class="btn-panel" style="background: #050505; padding: 12px; border-radius: 20px; border: 1px solid #111;">
+            <button class="btn btn-red" onclick="sendWsCmd('trunk')"><svg class="icon-btn" viewBox="0 0 24 24"><path d="M19 19H5V8h14v11zM7 10v7h10v-7H7zm5-8L8 6h3v3h2V6h3l-4-4z"/></svg></button>
+            <button class="btn btn-dark" onclick="sendWsCmd('lock')"><svg class="icon-btn" viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V12a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm3 8H9V7a3 3 0 0 1 6 0v3z"/></svg></button>
+            <button class="btn btn-dark" onclick="sendWsCmd('unlock')"><svg class="icon-btn" viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V12a2 2 0 0 0-2-2h-1V9a3 3 0 0 1 6 0 1 1 0 0 0 2 0 5 5 0 0 0-5-5v3H9V7a3 3 0 0 1 6 0 1 1 0 0 0 2 0 5 5 0 0 0-5-5z"/></svg></button>
+        </div>
+    </div>
+
+    <div id="tab-screens" class="tab-content">
+        <h3 style="color:#fff; margin-top:0;">УПРАВЛЕНИЕ ПАНЕЛЬЮ АВТО</h3>
+        <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:20px;">Переключение физических экранов на дисплее в машине.</p>
+        
+        <div class="btn-panel" style="flex-direction: column;">
+            <button class="btn btn-blue" style="padding: 22px; font-size: 16px;" onclick="sendWsCmd('set:0')">0: ГЛАВНЫЙ (МАШИНКА)</button>
+            <div style="display: flex; gap: 10px; width: 100%;">
+                <button class="btn btn-dark" onclick="sendWsCmd('set:1')">1: СИСТЕМА</button>
+                <button class="btn btn-purple" onclick="sendWsCmd('set:2')">2: ТАХОМЕТР</button>
+            </div>
+            <div style="display: flex; gap: 10px; width: 100%;">
+                <button class="btn btn-cyan" onclick="sendWsCmd('set:3')">3: ДИАГНОСТИКА</button>
+                <button class="btn btn-green" onclick="sendWsCmd('set:4')">4: СВОДКА</button>
+            </div>
+        </div>
+
+        <h3 style="color:#fff; margin-top:30px; margin-bottom: 10px;">ТЕМА ОФОРМЛЕНИЯ</h3>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-dark" style="color: #fff; border: 1px solid #555;" onclick="sendWsCmd('daymode:1')">☀️ ДЕНЬ</button>
+            <button class="btn btn-dark" style="color: #00ffaa; border: 1px solid #00ffaa;" onclick="sendWsCmd('daymode:0')">🌙 НОЧЬ</button>
+        </div>
+    </div>
+
+    <div id="tab-editor" class="tab-content">
+        <h3 style="color:#fff; margin-top:0;">КОНСТРУКТОР АКСЫ</h3>
+        <div class="box" style="padding: 15px;">
+            <div style="font-size: 11px; color: #666; margin-bottom: 15px; text-align: left; line-height: 1.5; background: #000; padding: 12px; border-radius: 10px; border: 1px solid #111;">
+                <b style="color:var(--neon)">Макросы ответа:</b> {TIME}, {ENG_TEMP}, {OUT_TEMP}, {WEATHER}, {HUMIDITY}, {CITY}, {FUEL}, {RPM}, {MILEAGE}, {SPEED}, {BATTERY}, {USD}, {EUR}, {BTC}, {NEWS}.
+            </div>
+            <input type="text" id="phrase" class="cmd-input" placeholder="Голосовая фраза">
+            <input type="number" id="canid" class="cmd-input" placeholder="CAN ID триггера (десятичный)">
+            <input type="text" id="reply" class="cmd-input" placeholder="Текст ответа">
+            <button class="btn btn-green" style="margin-top:10px; width:100%;" onclick="addCmd()">ДОБАВИТЬ В БУФЕР</button>
+        </div>
+        <button class="btn btn-blue" style="width:100%; margin-top:12px;" onclick="saveCmds()">ЗАШИТЬ В ПАМЯТЬ ESP32</button>
+        <div id="cmd-list" style="margin-top: 15px;"></div>
+    </div>
+
+    <div id="tab-settings" class="tab-content">
+        <h3 style="color:#fff; margin-top:0;">НАСТРОЙКИ СИСТЕМЫ</h3>
+        
+        <div class="box" style="align-items: stretch; text-align: left;">
+            <label style="color:var(--neon); font-size:12px; font-weight:800; letter-spacing:1px;">СЕТЕВОЙ IP АДРЕС ПЛАТЫ:</label>
+            <input type="text" id="esp-ip" class="cmd-input" style="font-size:18px; letter-spacing:2px; text-align:center;" value="192.168.4.1">
+            <button class="btn btn-green" style="margin-top:10px;" onclick="saveIPAndConnect()">ПОДКЛЮЧИТЬСЯ</button>
+        </div>
+        
+        <div class="box" style="align-items: stretch; margin-top: 15px;">
+            <div class="box-title" style="text-align: left;">ЯРКОСТЬ ДИСПЛЕЯ В АВТО</div>
+            <input type="range" min="10" max="255" value="255" style="width:100%; height:20px; background:#111; border-radius:10px; outline:none; margin-top:10px;" id="bright-slider" onchange="fetch('http://' + getEspIp() + '/sys?b=' + this.value).catch(e=>{});">
+        </div>
+
+        <div class="box" style="align-items: stretch; margin-top: 15px;">
+            <div class="box-title" style="text-align: left; color:#ff3333;">ЦВЕТОВАЯ ТЕМА (ВЫЗОВЕТ ПЕРЕЗАГРУЗКУ ПЛАТЫ)</div>
+            <div class="btn-panel" style="margin-top: 10px;">
+                <button class="btn sys-color" style="background:#00ffff; color:#000;" onclick="setColor(2047)">NEON</button>
+                <button class="btn sys-color" style="background:#ffaa00; color:#000;" onclick="setColor(65184)">GOLD</button>
+                <button class="btn sys-color" style="background:#ff3300; color:#fff;" onclick="setColor(61984)">LAVA</button>
+                <button class="btn sys-color" style="background:#00ff00; color:#000;" onclick="setColor(2016)">TOXIC</button>
+                <button class="btn sys-color" style="background:#8a2be2; color:#fff;" onclick="setColor(32799)">VIOLET</button>
+                <button class="btn sys-color" style="background:#e0ffff; color:#000;" onclick="setColor(57083)">ICE</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="switchTab('dash', this)">
+            <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            <div class="nav-label">Монитор</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('screens', this)">
+            <svg viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 7h4v4H5zm6 0h8v4h-8zM5 13h8v4H5zm10 0h4v4h-4z"/></svg>
+            <div class="nav-label">Дисплей</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('editor', this)">
+            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            <div class="nav-label">Команды</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('settings', this)">
+            <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+            <div class="nav-label">Система</div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active-tab'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active-tab');
+            element.classList.add('active');
+        }
+
+        function getEspIp() { return localStorage.getItem('esp_ip') || "192.168.4.1"; }
+        function saveIPAndConnect() {
+            let ip = document.getElementById('esp-ip').value.trim();
+            if(ip) {
+                localStorage.setItem('esp_ip', ip);
+                initWebSocket(); fetchCmds();
+            }
+        }
+        document.getElementById('esp-ip').value = getEspIp();
+
+        let sysData = { temp: 0, fuel: 0, ram: 0, cputemp: 0, mileage: 0, rpm: 0 };
+        let envData = { temp: 0, hum: 0, weatherDesc: 'неизвестно', city: 'неизвестно', speed: 0 };
+        let finData = { usd: 0, eur: 0, btc: 0 };
+        let batData = { level: 0, charging: false };
+        let topNews = "Нет свежих новостей";
+        let isFirstConnect = true;
+        let dynCmds = [];
+
+        function fetchCmds() {
+            fetch('http://' + getEspIp() + '/api/commands')
+                .then(r => r.json()).then(d => { dynCmds = d; renderCmds(); }).catch(e => console.log("Ждем плату..."));
+        }
+
+        function renderCmds() {
+            document.getElementById('cmd-list').innerHTML = dynCmds.map((c, i) =>
+                `<div class="cmd-item">
+                    <span><b>Фраза:</b> "${c.phrase}"</span>
+                    <span><b>CAN ID:</b> ${c.canId}</span>
+                    <span><b>Ответ:</b> ${c.reply}</span>
+                    <button class="del-btn" onclick="delCmd(${i})">УДАЛИТЬ КОМАНДУ</button>
+                </div>`
+            ).join('');
+        }
+
+        function addCmd() {
+            let p = document.getElementById('phrase').value.trim().toLowerCase();
+            let c = document.getElementById('canid').value.trim();
+            let r = document.getElementById('reply').value.trim();
+            if(!p || !c || !r) return alert("Заполните все поля!");
+            dynCmds.push({ phrase: p, canId: c, reply: r });
+            document.getElementById('phrase').value = ""; document.getElementById('canid').value = ""; document.getElementById('reply').value = "";
+            renderCmds();
+        }
+
+        function delCmd(i) { dynCmds.splice(i, 1); renderCmds(); }
+
+        function saveCmds() {
+            fetch('http://' + getEspIp() + '/api/commands', { 
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynCmds) 
+            }).then(() => alert('Сохранено в ПЗУ!')).catch(e => alert('Нет связи!'));
+        }
+
+        function setColor(val) {
+            if(confirm("Применение цвета вызовет жесткую перезагрузку платы ESP32. Продолжить?")) {
+                fetch('http://' + getEspIp() + '/sys?c=' + val).catch(e=>{});
+                document.body.innerHTML = `<div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#000;">
+                    <svg viewBox="0 0 24 24" style="width:60px; height:60px; fill:#ff3333; animation: blink 1s infinite; margin-bottom: 20px;">
+                        <path d="M12 2v4c4.4 0 8 3.6 8 8s-3.6 8-8 8-8-3.6-8-8H2c0 5.5 4.5 10 10 10s10-4.5 10-10S17.5 2 12 2z"/>
+                    </svg>
+                    <div style="font-size:20px; color:#ff3333; font-weight:800; letter-spacing:2px; text-align:center;">ПЕРЕЗАГРУЗКА ESP32...</div>
+                </div>`;
+                setTimeout(() => { location.reload(); }, 4500);
+            }
+        }
+
+        var ws;
+        function initWebSocket() {
+            if(ws) ws.close();
+            ws = new WebSocket('ws://' + getEspIp() + ':81/');
+            
+            ws.onopen = function() {
+                document.getElementById('status-circle').className = "circle online";
+                document.getElementById('status-text').innerText = "ONLINE";
+            };
+            
+            ws.onmessage = function(event) {
+                var d = JSON.parse(event.data);
+                if (d.update_cmds) { fetchCmds(); return; }
+                
+                document.getElementById('rpm').innerText = d.rpm;
+                document.getElementById('temp').innerText = (d.temp > -40) ? d.temp : "--";
+                document.getElementById('fuel').innerText = d.fuel;
+                document.getElementById('mileage').innerText = d.mileage;
+                document.getElementById('baud-rate').innerText = d.baud + " кбод";
+                
+                sysData.temp = d.temp; sysData.fuel = d.fuel; sysData.mileage = d.mileage; sysData.rpm = d.rpm;
+                if(d.ram) sysData.ram = d.ram; if(d.cputemp) sysData.cputemp = d.cputemp;
+
+                if (isFirstConnect) {
+                    isFirstConnect = false;
+                    setTimeout(() => speak("Акса на связи. Система Икс Коннект запущена."), 1500);
+                }
+            };
+            
+            ws.onclose = function() { 
+                document.getElementById('status-circle').className = "circle offline";
+                document.getElementById('status-text').innerText = "ПОИСК ESP32";
+                document.getElementById('baud-rate').innerText = "--- кбод";
+                setTimeout(initWebSocket, 2000); 
+            };
+        }
+
+        function sendWsCmd(cmd) {
+            if(ws && ws.readyState === 1) { ws.send(cmd); } 
+            else {
+                if(cmd.startsWith('set:')) { fetch('http://' + getEspIp() + '/set?s=' + cmd.split(':')[1]).catch(e=>{}); }
+                else { fetch('http://' + getEspIp() + '/cmd?act=' + cmd).catch(e=>{}); }
+            }
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                let msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'ru-RU'; window.speechSynthesis.speak(msg);
+            }
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ru-RU'; recognition.interimResults = false;
+            
+            window.startVoice = function() {
+                document.getElementById('mic-btn').style.background = 'linear-gradient(145deg, #4d001a, #26000d)';
+                document.getElementById('mic-btn').style.borderColor = '#ff0055';
+                document.getElementById('mic-text').innerText = 'СЛУШАЮ...';
+                recognition.start();
+            };
+
+            recognition.onresult = (event) => {
+                const speechResult = event.results[0][0].transcript.toLowerCase();
+                document.getElementById('mic-btn').style.background = 'linear-gradient(145deg, #2a004d, #140026)';
+                document.getElementById('mic-btn').style.borderColor = '#aa00ff';
+                document.getElementById('mic-text').innerText = 'АКСА: ОЖИДАНИЕ КОМАНДЫ';
+                
+                let matchedDynCmd = false;
+                for (let i = 0; i < dynCmds.length; i++) {
+                    let cmd = dynCmds[i];
+                    if (speechResult.includes(cmd.phrase)) {
+                        sendWsCmd("id:" + cmd.canId);
+                        let replyStr = cmd.reply;
+                        let now = new Date();
+                        let hh = String(now.getHours()).padStart(2, '0'); let mm = String(now.getMinutes()).padStart(2, '0');
+                        
+                        replyStr = replyStr.replaceAll("{TIME}", hh + ":" + mm);
+                        replyStr = replyStr.replaceAll("{ENG_TEMP}", (sysData.temp > -40) ? sysData.temp : "неизвестно");
+                        replyStr = replyStr.replaceAll("{OUT_TEMP}", envData.temp);
+                        replyStr = replyStr.replaceAll("{WEATHER}", envData.weatherDesc);
+                        replyStr = replyStr.replaceAll("{HUMIDITY}", envData.hum);
+                        replyStr = replyStr.replaceAll("{CITY}", envData.city);
+                        replyStr = replyStr.replaceAll("{FUEL}", sysData.fuel);
+                        replyStr = replyStr.replaceAll("{RPM}", sysData.rpm);
+                        replyStr = replyStr.replaceAll("{SPEED}", envData.speed);
+                        replyStr = replyStr.replaceAll("{MILEAGE}", sysData.mileage);
+                        replyStr = replyStr.replaceAll("{BATTERY}", batData.level);
+                        replyStr = replyStr.replaceAll("{USD}", finData.usd);
+                        replyStr = replyStr.replaceAll("{EUR}", finData.eur);
+                        replyStr = replyStr.replaceAll("{BTC}", finData.btc);
+                        replyStr = replyStr.replaceAll("{NEWS}", topNews);
+                        speak(replyStr); matchedDynCmd = true; break;
+                    }
+                }
+                
+                if (matchedDynCmd) return;
+                
+                if(speechResult.includes('тихо') || speechResult.includes('стоп')) { window.speechSynthesis.cancel(); }
+                else if(speechResult.includes('дневной') || speechResult.includes('светлый')) { speak("Включаю дневной режим."); sendWsCmd('daymode:1'); }
+                else if(speechResult.includes('ночной') || speechResult.includes('темный')) { speak("Включаю ночной режим."); sendWsCmd('daymode:0'); }
+                else if(speechResult === 'акса' || speechResult.includes('акс')) { speak("Да, Женя. Я на связи."); }
+                else if(speechResult.includes('создатель') || speechResult.includes('кто тебя написал')) { speak("Мой главный инженер — Евгений. Проект Икс Коннект."); }
+                else if(speechResult.includes('привет')) { speak("Привет, Женя! Системы активны, я к вашим услугам."); }
+                else if(speechResult.includes('как дела')) { speak("Все датчики в норме. Готова к поездке. А как ваше настроение?"); }
+                else if(speechResult.includes('что делаешь')) { speak("Мониторю шину данных Форд Фьюжн и жду команд."); }
+                else if(speechResult.includes('спасибо') || speechResult.includes('молодец')) { speak("Рада стараться!"); }
+                else if(speechResult.includes('спокойной ночи')) { speak("Доброй ночи. Перехожу в спящий режим."); }
+                else if(speechResult.includes('поехали') || speechResult.includes('запуск')) { speak("Телеметрия запущена. Хорошей дороги, Женя."); sendWsCmd('set:0'); }
+                else if(speechResult.includes('приехали') || speechResult.includes('глуши')) { speak("Поездка завершена. Не забудьте заблокировать машину."); sendWsCmd('set:1'); }
+                else if(speechResult.includes('по маслу')) {
+                    let m = sysData.mileage || 0; let remain = 10000 - (m % 10000);
+                    speak(`Пробег ${m}. До замены масла осталось примерно ${remain} километров.`);
+                }
+                else if(speechResult.includes('статус') || speechResult.includes('диагностик')) {
+                    let t = sysData.temp > -40 ? sysData.temp : "неизвестно сколько";
+                    speak(`Двигатель ${t} градусов. Бензина ${sysData.fuel} литров. Память процессора ${sysData.ram} килобайт. Температура чипа ${sysData.cputemp} градусов.`); sendWsCmd('set:1');
+                }
+                else if(speechResult.includes('погод') || speechResult.includes('координат')) { speak(`За бортом ${envData.temp} градусов. Скорость по джи пи эс ${envData.speed} километров в час.`); sendWsCmd('set:3'); }
+                else if(speechResult.includes('сводк') || speechResult.includes('брифинг')) { speak(`Доллар ${finData.usd} рублей. Биткоин ${finData.btc} долларов. Главная новость: ${topNews}`); sendWsCmd('set:4'); }
+                else if(speechResult.includes('заряд')) { speak(`Заряд телефона ${batData.level} процентов. ${batData.charging ? "Зарядка подключена." : "Работа от батареи."}`); }
+                else if(speechResult.includes('главн') || speechResult.includes('домой')) { speak("Главный экран"); sendWsCmd('set:0'); }
+                else if(speechResult.includes('тахометр') || speechResult.includes('оборот')) { speak("Тахометр"); sendWsCmd('set:2'); }
+                else if(speechResult.includes('багажн')) { speak("Открываю багажник"); sendWsCmd('trunk'); }
+                else if(speechResult.includes('разблок')) { speak("Разблокировано"); sendWsCmd('unlock'); }
+                else if(speechResult.includes('заблок') || speechResult.includes('блок')) { speak("Заблокировано"); sendWsCmd('lock'); }
+                else speak("Команда не распознана, повторите.");
+            };
+        }
+
+        function getWeatherDesc(code) {
+            if(code === 0) return "ясно"; if(code <= 2) return "переменная облачность"; if(code === 3) return "пасмурно";
+            if(code >= 45 && code <= 48) return "туман"; if(code >= 51 && code <= 57) return "морось";
+            if(code >= 61 && code <= 67) return "дождь"; if(code >= 71 && code <= 77) return "снег";
+            if(code >= 80 && code <= 82) return "ливень"; if(code >= 95) return "гроза"; return "неизвестно";
+        }
+
+        setInterval(async () => {
+            if(ws && ws.readyState === 1 && navigator.getBattery) {
+                const bat = await navigator.getBattery();
+                batData.level = Math.round(bat.level * 100); batData.charging = bat.charging;
+                ws.send("bat:" + batData.level + "," + (bat.charging ? 1 : 0));
+            }
+        }, 3000);
+
+        async function fetchGlobalData() {
+            try {
+                const btcRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"); const btcData = await btcRes.json();
+                const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/USD"); const rateData = await rateRes.json();
+                if(ws && ws.readyState === 1) {
+                    finData.usd = Math.round(rateData.rates.RUB); finData.eur = Math.round(rateData.rates.RUB / rateData.rates.EUR); finData.btc = Math.round(btcData.price);
+                    ws.send("fin:" + finData.usd + "," + finData.eur + "," + finData.btc);
+                }
+                const newsRes = await fetch("https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news"); const newsData = await newsRes.json();
+                if(newsData.status === "ok" && newsData.items.length >= 3) {
+                    topNews = newsData.items[0].title;
+                    if(ws && ws.readyState === 1) ws.send("nws:" + topNews + " *** " + newsData.items[1].title + " *** " + newsData.items[2].title + " *** ");
+                }
+            } catch(e) {}
+        }
+        setInterval(fetchGlobalData, 600000); setTimeout(fetchGlobalData, 2000);
+
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(function(pos) {
+                let lat = pos.coords.latitude.toFixed(4); let lon = pos.coords.longitude.toFixed(4);
+                envData.speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0; 
+                document.getElementById('speed').innerText = envData.speed;
+                if(ws && ws.readyState === 1) ws.send("gps:" + lat + "," + lon + "," + envData.speed);
+                
+                fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,weather_code").then(r => r.json()).then(wData => {
+                    envData.temp = wData.current.temperature_2m; envData.hum = wData.current.relative_humidity_2m; envData.weatherDesc = getWeatherDesc(wData.current.weather_code);
+                    fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+lat+"&longitude="+lon+"&localityLanguage=ru").then(r => r.json()).then(geo => {
+                        envData.city = geo.city || geo.locality || "Машина";
+                        if(ws && ws.readyState === 1) ws.send("wea:" + envData.temp + "," + wData.current.weather_code + "," + envData.city);
+                    });
+                });
+            }, function(err) {}, { enableHighAccuracy: true });
+        }
+
+        window.onload = () => { initWebSocket(); fetchCmds(); };
+    </script>
+</body>
+</html>
