@@ -469,5 +469,14 @@
 
         window.onload = () => { initWebSocket(); fetchCmds(); };
     </script>
+        <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker X-CONECT успешно зарегистрирован!'))
+                    .catch(err => console.error('Ошибка регистрации:', err));
+            });
+        }
+    </script>
 </body>
 </html>
