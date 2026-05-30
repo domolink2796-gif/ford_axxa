@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -113,7 +112,7 @@
 
     <div id="tab-screens" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">УПРАВЛЕНИЕ ПАНЕЛЬЮ АВТО</h3>
-        <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:20px;">Переключение физических экранов на дисплее в машине.</p>
+        <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:20px;">Переключение physical экранов на дисплее в машине.</p>
         
         <div class="btn-panel" style="flex-direction: column;">
             <button class="btn btn-blue" style="padding: 22px; font-size: 16px;" onclick="sendWsCmd('set:0')">0: ГЛАВНЫЙ (МАШИНКА)</button>
@@ -373,7 +372,7 @@
                 else if(speechResult.includes('дневной') || speechResult.includes('светлый')) { speak("Включаю дневной режим."); sendWsCmd('daymode:1'); }
                 else if(speechResult.includes('ночной') || speechResult.includes('темный')) { speak("Включаю ночной режим."); sendWsCmd('daymode:0'); }
                 else if(speechResult === 'акса' || speechResult.includes('акс')) { speak("Да, Женя. Я на связи."); }
-                else if(speechResult.includes('создатель') || speechResult.includes('кто тебя написал')) { speak("Мой главный инженер — Евгений. Проект Икс Коннект."); }
+                else if(speechResult.includes('создатель') || speechResult.includes('кто тебя написал')) { speak("Мой главный engineer — Евгений. Проект Икс Коннект."); }
                 else if(speechResult.includes('привет')) { speak("Привет, Женя! Системы активны, я к вашим услугам."); }
                 else if(speechResult.includes('как дела')) { speak("Все датчики в норме. Готова к поездке. А как ваше настроение?"); }
                 else if(speechResult.includes('что делаешь')) { speak("Мониторю шину данных Форд Фьюжн и жду команд."); }
@@ -381,7 +380,7 @@
                 else if(speechResult.includes('спокойной ночи')) { speak("Доброй ночи. Перехожу в спящий режим."); }
                 else if(speechResult.includes('поехали') || speechResult.includes('запуск')) { speak("Телеметрия запущена. Хорошей дороги, Женя."); sendWsCmd('set:0'); }
                 else if(speechResult.includes('приехали') || speechResult.includes('глуши')) { speak("Поездка завершена. Не забудьте заблокировать машину."); sendWsCmd('set:1'); }
-                else if(speechResult.includes('по маслу')) {
+                else if(speechResult.includes('по масло')) {
                     let m = sysData.mileage || 0; let remain = 10000 - (m % 10000);
                     speak(`Пробег ${m}. До замены масла осталось примерно ${remain} километров.`);
                 }
@@ -416,22 +415,36 @@
             }
         }, 3000);
 
+        let fullNewsString = "СИНХРОНИЗАЦИЯ...";
+        let weatherFetched = false;
+
         async function fetchGlobalData() {
             try {
                 const btcRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"); const btcData = await btcRes.json();
                 const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/USD"); const rateData = await rateRes.json();
-                if(ws && ws.readyState === 1) {
-                    finData.usd = Math.round(rateData.rates.RUB); finData.eur = Math.round(rateData.rates.RUB / rateData.rates.EUR); finData.btc = Math.round(btcData.price);
-                    ws.send("fin:" + finData.usd + "," + finData.eur + "," + finData.btc);
-                }
+                
+                finData.usd = Math.round(rateData.rates.RUB); 
+                finData.eur = Math.round(rateData.rates.RUB / rateData.rates.EUR); 
+                finData.btc = Math.round(btcData.price);
+                
                 const newsRes = await fetch("https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news"); const newsData = await newsRes.json();
                 if(newsData.status === "ok" && newsData.items.length >= 3) {
                     topNews = newsData.items[0].title;
-                    if(ws && ws.readyState === 1) ws.send("nws:" + topNews + " *** " + newsData.items[1].title + " *** " + newsData.items[2].title + " *** ");
+                    fullNewsString = topNews + " *** " + newsData.items[1].title + " *** " + newsData.items[2].title + " *** ";
                 }
             } catch(e) {}
         }
-        setInterval(fetchGlobalData, 600000); setTimeout(fetchGlobalData, 2000);
+        
+        function sendGlobalData() {
+            if(ws && ws.readyState === 1 && finData.usd > 0) {
+                ws.send("fin:" + finData.usd + "," + finData.eur + "," + finData.btc);
+                ws.send("nws:" + fullNewsString);
+            }
+        }
+
+        setInterval(fetchGlobalData, 600000); 
+        setTimeout(fetchGlobalData, 2000);
+        setInterval(sendGlobalData, 5000); 
 
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(function(pos) {
@@ -440,13 +453,17 @@
                 document.getElementById('speed').innerText = envData.speed;
                 if(ws && ws.readyState === 1) ws.send("gps:" + lat + "," + lon + "," + envData.speed);
                 
-                fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,weather_code").then(r => r.json()).then(wData => {
-                    envData.temp = wData.current.temperature_2m; envData.hum = wData.current.relative_humidity_2m; envData.weatherDesc = getWeatherDesc(wData.current.weather_code);
-                    fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+lat+"&longitude="+lon+"&localityLanguage=ru").then(r => r.json()).then(geo => {
-                        envData.city = geo.city || geo.locality || "Машина";
-                        if(ws && ws.readyState === 1) ws.send("wea:" + envData.temp + "," + wData.current.weather_code + "," + envData.city);
+                if(!weatherFetched) {
+                    weatherFetched = true;
+                    setInterval(() => { weatherFetched = false; }, 600000);
+                    fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,weather_code").then(r => r.json()).then(wData => {
+                        envData.temp = wData.current.temperature_2m; envData.hum = wData.current.relative_humidity_2m; envData.weatherDesc = getWeatherDesc(wData.current.weather_code);
+                        fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+lat+"&longitude="+lon+"&localityLanguage=en").then(r => r.json()).then(geo => {
+                            envData.city = geo.city || geo.locality || "GPS OK";
+                            if(ws && ws.readyState === 1) ws.send("wea:" + envData.temp + "," + wData.current.weather_code + "," + envData.city);
+                        });
                     });
-                });
+                }
             }, function(err) {}, { enableHighAccuracy: true });
         }
 
