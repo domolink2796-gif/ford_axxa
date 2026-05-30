@@ -1,9 +1,21 @@
-const CACHE_NAME = 'x-conect-smart-cache-v1';
+const CACHE_NAME = 'x-conect-smart-cache-v3';
+const ASSETS = [
+  './',
+  './index.html',
+  './manifest.json'
+];
 
-// 1. Установка: сразу активируем воркер
-self.addEventListener('install', () => self.skipWaiting());
+// 1. Установка: кешируем только то, что железобетонно существует
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            console.log('Безопасная предзагрузка ядра X-CONECT...');
+            return cache.addAll(ASSETS);
+        }).then(() => self.skipWaiting())
+    );
+});
 
-// 2. Активация: чистка старых версий
+// 2. Активация: чистка старого мусора
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
@@ -19,9 +31,8 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// 3. ГЛАВНАЯ ЛОГИКА: Сначала сеть, если сети нет — Кэш
+// 3. Логика запросов: динамически кешируем всё остальное (включая иконку, когда она запросится)
 self.addEventListener('fetch', (event) => {
-    // Исключаем API логиста и аппаратные команды ESP32, чтобы они уходили напрямую
     if (
         event.request.url.includes('/upload') || 
         event.request.url.includes('/api') || 
@@ -31,32 +42,31 @@ self.addEventListener('fetch', (event) => {
     ) return;
 
     event.respondWith(
-        fetch(event.request)
-            .then((response) => {
-                // Если интернет есть, обновляем копию в памяти
-                if (response && response.status === 200) {
-                    const responseCopy = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseCopy);
-                    });
-                }
-                return response;
-            })
-            .catch(() => {
-                // ЕСЛИ ИНТЕРНЕТА НЕТ — отдаем из памяти
-                return caches.match(event.request).then((cached) => {
-                    if (cached) return cached;
-                    
-                    // Если это навигация, а в кэше нет — корень
-                    if (event.request.mode === 'navigate') {
-                        return caches.match('./index.html') || caches.match('./');
+        caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                fetch(event.request).then((networkResponse) => {
+                    if (networkResponse.status === 200) {
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
                     }
-                });
-            })
+                }).catch(() => {});
+                return cachedResponse;
+            }
+
+            return fetch(event.request).then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200) {
+                    const responseCopy = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseCopy));
+                }
+                return networkResponse;
+            }).catch(() => {
+                if (event.request.mode === 'navigate') {
+                    return caches.match('./index.html') || caches.match('./');
+                }
+            });
+        })
     );
 });
 
-// Слушаем команду на обновление из приложения
 self.addEventListener('message', (event) => {
     if (event.data.type === 'SKIP_WAITING' || event.data.action === 'skipWaiting') {
         self.skipWaiting();
