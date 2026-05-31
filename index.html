@@ -235,11 +235,11 @@
             }
         }
         
-        // --- НОВЫЙ БЛОК: СМЕНА ЦВЕТА ЧЕРЕЗ СОКЕТ ---
+        // --- ИСПРАВЛЕННЫЙ БЛОК: СМЕНА ЦВЕТА ЧЕРЕЗ HTTP (КАК ЖДЕТ ПРОШИВКА ESP32) ---
         function setColor(val) {
-            if(ws && ws.readyState === 1) { ws.send("color:" + val); }
+            fetch('http://' + getEspIp() + '/sys?c=' + val).catch(e => console.log("Плата ушла в перезагрузку"));
             document.body.innerHTML = '<div style="margin-top:50%;font-size:35px;color:#0ff;font-weight:bold;text-shadow:0 0 15px #0ff;letter-spacing:3px;text-align:center;">ПЕРЕЗАГРУЗКА...</div>';
-            setTimeout(() => { location.reload(); }, 3000);
+            setTimeout(() => { location.reload(); }, 3500);
         }
 
         document.getElementById('esp-ip').value = getEspIp();
@@ -504,7 +504,7 @@
             }
         }
 
-        // --- ВОССТАНОВЛЕННАЯ ФУНКЦИЯ ДЛЯ АКСЫ ---
+        // --- ВОССТАНОВЛЕННАЯ ФУНКЦИЯ ДЛЯ АКСЫ (ПЕРЕВОД ПОГОДЫ В ТЕКСТ) ---
         function getWeatherDesc(code) {
             if(code === 0) return "ясно";
             if(code === 1 || code === 2) return "переменная облачность";
@@ -664,35 +664,38 @@
         setTimeout(fetchGlobalData, 2000);
         setInterval(sendGlobalData, 5000); 
 
-        // --- НОВЫЙ БЛОК ПОГОДЫ ЧЕРЕЗ IP ДЛЯ ОБХОДА БЛОКИРОВОК ---
-        function fetchWeatherByIP() {
-            fetch("http://ip-api.com/json/")
-            .then(r => r.json())
-            .then(geo => {
-                let lat = geo.lat;
-                let lon = geo.lon;
-                envData.city = geo.city || "Орёл";
-                return fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,weather_code");
-            })
-            .then(r => r.json())
-            .then(wData => {
-                envData.temp = wData.current.temperature_2m;
-                envData.hum = wData.current.relative_humidity_2m;
-                envData.weatherDesc = getWeatherDesc(wData.current.weather_code);
-                weatherLoaded = true;
+        // --- ВОССТАНОВЛЕННЫЙ И ЗАЩИЩЕННЫЙ БЛОК ПОГОДЫ ---
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(function(pos) {
+                let lat = pos.coords.latitude.toFixed(4); let lon = pos.coords.longitude.toFixed(4);
+                envData.speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0; 
+                document.getElementById('speed').innerText = envData.speed;
+                if(ws && ws.readyState === 1) ws.send("gps:" + lat + "," + lon + "," + envData.speed);
                 
-                if(ws && ws.readyState === 1) {
-                    ws.send("wea:" + envData.temp + "," + wData.current.weather_code + "," + envData.city);
+                if(!weatherFetched) {
+                    weatherFetched = true;
+                    setInterval(() => { weatherFetched = false; }, 600000);
+                    fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,weather_code")
+                    .then(r => r.json())
+                    .then(wData => {
+                        envData.temp = wData.current.temperature_2m; 
+                        envData.hum = wData.current.relative_humidity_2m; 
+                        envData.weatherDesc = getWeatherDesc(wData.current.weather_code); // Теперь не вызывает ошибку!
+                        
+                        fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+lat+"&longitude="+lon+"&localityLanguage=ru")
+                        .then(r => r.json())
+                        .then(geo => {
+                            envData.city = geo.city || geo.locality || "GPS OK";
+                            if(ws && ws.readyState === 1) ws.send("wea:" + envData.temp + "," + wData.current.weather_code + "," + envData.city);
+                        });
+                    }).catch(e => console.log("Ошибка загрузки погоды"));
                 }
-            }).catch(e => console.log("Ошибка загрузки погоды"));
+            }, function(err) {}, { enableHighAccuracy: true });
         }
-
-        setTimeout(fetchWeatherByIP, 2000);
-        setInterval(fetchWeatherByIP, 900000);
 
         window.onload = () => { initWebSocket(); fetchCmds(); };
     </script>
-        <script>
+    <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
