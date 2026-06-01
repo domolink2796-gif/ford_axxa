@@ -59,7 +59,6 @@
         .error-desc { font-size: 14px; color: #ffcccc; line-height: 1.4; }
         .success-card { background: #001100; border: 1px solid #00ffaa; padding: 15px; border-radius: 12px; margin-top: 10px; text-align: center; color: #00ffaa; font-weight: bold; }
 
-        /* Стили для журнала */
         .log-card { background: #0a0a0a; border: 1px solid #222; border-left: 4px solid var(--neon); padding: 15px; border-radius: 12px; margin-top: 10px; text-align: left; }
         .log-date { font-size: 12px; color: #777; margin-bottom: 5px; }
         .log-title { font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 5px; }
@@ -68,15 +67,16 @@
         .progress-container { width: 100%; background: #222; border-radius: 10px; height: 12px; margin-top: 10px; overflow: hidden; }
         .progress-bar { height: 100%; background: linear-gradient(90deg, #00ffaa, #0099ff); width: 0%; transition: width 0.5s; }
 
+        select.cmd-input { appearance: none; -webkit-appearance: none; background: #0a0a0a url("data:image/svg+xml;utf8,<svg fill='white' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>") no-repeat right 10px center; }
+
         .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #030303; border-top: 1px solid #151515; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
         .nav-item { color: #555; display: flex; flex-direction: column; align-items: center; flex: 1; cursor: pointer; transition: 0.3s; }
-        .nav-item svg { width: 24px; height: 24px; fill: currentColor; margin-bottom: 4px; }
+        .nav-item svg { width: 22px; height: 22px; fill: currentColor; margin-bottom: 4px; }
         .nav-item.active { color: var(--neon); }
         .nav-item.active svg { filter: drop-shadow(0 0 8px var(--neon)); }
-        .nav-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+        .nav-label { font-size: 9px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
         
         .sys-color { height: 50px; border-radius: 12px; font-size: 12px; flex: 1 1 30%; font-weight: 900; }
-        select.cmd-input { appearance: none; -webkit-appearance: none; background: #0a0a0a url("data:image/svg+xml;utf8,<svg fill='white' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>") no-repeat right 10px center; }
     </style>
 </head>
 <body>
@@ -89,7 +89,6 @@
         <div id="baud-rate">--- кбод</div>
     </div>
 
-    <!-- Вкладка Монитор -->
     <div id="tab-dash" class="tab-content active-tab">
         <button class="btn btn-voice" id="mic-btn" onclick="startVoice()">
             <svg style="width:24px;height:24px;fill:currentColor;vertical-align:middle;margin-right:8px;" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
@@ -126,7 +125,6 @@
         </div>
     </div>
 
-    <!-- Вкладка Гараж (Журнал) -->
     <div id="tab-garage" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">БОРТОВОЙ ЖУРНАЛ</h3>
         
@@ -169,10 +167,9 @@
         <div id="log-list"></div>
     </div>
 
-    <!-- Вкладка Экран -->
     <div id="tab-screens" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">УПРАВЛЕНИЕ ПАНЕЛЬЮ АВТО</h3>
-        <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:20px;">Переключение физических экранов на дисплее в машине.</p>
+        <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:20px;">Переключение экранов на дисплее в машине.</p>
         
         <div class="btn-panel" style="flex-direction: column;">
             <button class="btn btn-blue" style="padding: 22px; font-size: 16px;" onclick="sendWsCmd('set:0')">0: ГЛАВНЫЙ (МАШИНКА)</button>
@@ -193,7 +190,6 @@
         </div>
     </div>
     
-    <!-- Вкладка Ошибки (DTC) -->
     <div id="tab-dtc" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">СКАНИРОВАНИЕ БЛОКОВ</h3>
         <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:15px;">Прямой опрос модулей PCM и IPC по шине CAN (без интернета).</p>
@@ -206,17 +202,27 @@
         <div id="dtc-results">
             <div style="color:#555; margin-top:40px; font-size:14px; font-weight:bold;">ДАННЫХ НЕТ.<br>НАЖМИТЕ "СКАНИРОВАТЬ"</div>
         </div>
+    </div>
+
+    <div id="tab-dtcdb" class="tab-content">
+        <h3 style="color:#fff; margin-top:0;">МОЯ БАЗА ОШИБОК</h3>
+        <p style="color:#666; font-size:12px; line-height:1.4; margin-bottom:15px;">Добавление неизвестных кодов неисправностей. Данные сохраняются в памяти телефона.</p>
         
-        <h3 style="color:#fff; margin-top:30px;">МОЯ БАЗА ОШИБОК</h3>
         <div class="box" style="padding: 15px;">
             <input type="text" id="new-dtc-code" class="cmd-input" placeholder="Код (например, P1234)" style="text-transform: uppercase;">
             <input type="text" id="new-dtc-desc" class="cmd-input" placeholder="Описание неисправности">
             <button class="btn btn-green" style="margin-top:10px; width:100%;" onclick="addCustomDTC()">ДОБАВИТЬ В БАЗУ</button>
         </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button class="btn btn-blue" style="flex:1; font-size:11px;" onclick="exportDTC_CSV()">ЭКСПОРТ (EXCEL)</button>
+            <button class="btn btn-purple" style="flex:1; font-size:11px;" onclick="document.getElementById('import-dtc-file').click()">ИМПОРТ (EXCEL)</button>
+            <input type="file" id="import-dtc-file" accept=".csv" style="display:none;" onchange="importDTC_CSV(event)">
+        </div>
+
         <div id="custom-dtc-list" style="margin-top: 15px;"></div>
     </div>
 
-    <!-- Вкладка Редактор Команд -->
     <div id="tab-editor" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">КОНСТРУКТОР АКСЫ</h3>
         <div class="box" style="padding: 15px;">
@@ -232,7 +238,6 @@
         <div id="cmd-list" style="margin-top: 15px;"></div>
     </div>
 
-    <!-- Вкладка Настройки -->
     <div id="tab-settings" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">НАСТРОЙКИ СИСТЕМЫ</h3>
         <div class="box" style="align-items: stretch; text-align: left;">
@@ -259,7 +264,6 @@
         </div>
     </div>
 
-    <!-- Навигация -->
     <div class="nav-bar">
         <div class="nav-item active" onclick="switchTab('dash', this)">
             <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
@@ -276,6 +280,10 @@
         <div class="nav-item" onclick="switchTab('dtc', this)">
             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
             <div class="nav-label">Ошибки</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('dtcdb', this)">
+            <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>
+            <div class="nav-label">База</div>
         </div>
         <div class="nav-item" onclick="switchTab('editor', this)">
             <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
@@ -328,7 +336,6 @@
         function updateGarageDashboard() {
             let currentMileage = sysData.mileage || 0;
             
-            // Расчет ТО (Масло)
             if (lastOilChangeMileage > 0 && currentMileage > 0) {
                 let driven = currentMileage - lastOilChangeMileage;
                 let remain = 10000 - driven;
@@ -344,7 +351,6 @@
                 else bar.style.background = 'linear-gradient(90deg, #00ffaa, #0099ff)';
             }
 
-            // Расчет финансов
             let currentMonth = new Date().getMonth();
             let currentYear = new Date().getFullYear();
             let monthTotal = 0;
@@ -379,7 +385,7 @@
                 mileage: sysData.mileage || 0
             };
 
-            garageLogs.unshift(log); // Добавляем в начало
+            garageLogs.unshift(log); 
             localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
             
             if (cat === "ТО" && desc.toLowerCase().includes("масло")) {
@@ -439,37 +445,156 @@
         let dtcBuffer = [];
         let customErrorsDB = JSON.parse(localStorage.getItem('custom_dtc') || '{}');
         
+        // ПОЛНАЯ ЗАВОДСКАЯ БАЗА FORD ИЗ ОРИГИНАЛА
         const fordErrorsDB = {
-            "P0300": "Обнаружены множественные пропуски зажигания.",
-            "P0301": "Пропуски зажигания в первом цилиндре.",
-            "P1000": "Цикл тестирования OBD не завершен.",
-            "U1900": "Сбой передачи данных по шине CAN."
+            "P0000": "Отсутствие кодов неисправностей в памяти системы.",
+            "P0030": "Разрыв в цепи обогрева управляющего датчика кислорода (лямбда-зонд).",
+            "P0031": "Низкое напряжение в цепи обогрева датчика кислорода.",
+            "P0032": "Высокое напряжение в цепи обогрева датчика кислорода.",
+            "P0036": "Разрыв в цепи обогрева каталитического нейтрализатора.",
+            "P0071": "Неисправность в цепи датчика температуры воздуха в салоне.",
+            "P0106": "Нарушение работы датчика абсолютного давления (MAP).",
+            "P0112": "Замыкание на массу датчика температуры всасываемого воздуха.",
+            "P0115": "Ошибка сигнала системы охлаждения двигателя.",
+            "P0116": "Чрезмерно низкий уровень сигнала датчика охлаждающей жидкости.",
+            "P0122": "Замыкание на массу в цепи датчика положения педали акселератора.",
+            "P0130": "Разрыв в цепи управляющего датчика кислорода.",
+            "P0133": "Медленное реагирование управляющего датчика кислорода.",
+            "P0171": "Слишком бедная топливная смесь. Возможен подсос воздуха.",
+            "P0172": "Слишком богатая топливная смесь.",
+            "P0201": "Неисправность в цепи форсунки 1-го цилиндра.",
+            "P0202": "Неисправность в цепи форсунки 2-го цилиндра.",
+            "P0203": "Неисправность в цепи форсунки 3-го цилиндра.",
+            "P0204": "Неисправность в цепи форсунки 4-го цилиндра.",
+            "P0222": "Замыкание на массу в цепи датчика положения дроссельной заслонки.",
+            "P0231": "Низкое напряжение на входе топливного насоса.",
+            "P0300": "Обнаружены множественные или случайные пропуски зажигания.",
+            "P0301": "Пропуски зажигания в первом цилиндре. Проверьте свечу или катушку.",
+            "P0302": "Пропуски зажигания во втором цилиндре. Проверьте свечу или катушку.",
+            "P0303": "Пропуски зажигания в третьем цилиндре. Проверьте свечу или катушку.",
+            "P0304": "Пропуски зажигания в четвертом цилиндре. Проверьте свечу или катушку.",
+            "P0315": "Система не распознала датчик положения коленчатого вала.",
+            "P0324": "Ошибка связи с датчиком детонации.",
+            "P0335": "Нестабильный сигнал от датчика коленвала (ДПКВ).",
+            "P0340": "Отсутствие сигнала датчика положения распределительного вала.",
+            "P0351": "Неисправность в первичном контуре катушки зажигания А.",
+            "P0352": "Неисправность в первичном контуре катушки зажигания В.",
+            "P0420": "Низкая эффективность работы катализатора.",
+            "P0500": "Нестабильный сигнал датчика скорости автомобиля.",
+            "P0511": "Неисправность в цепи регулятора холостого хода.",
+            "P0560": "Слишком высокое напряжение в системе бортового электропитания.",
+            "P0562": "Слишком низкое напряжение бортовой сети.",
+            "P0603": "Ошибка энергонезависимой памяти (KAM) модуля управления.",
+            "P0610": "Неправильные настройки блока управления двигателем.",
+            "P0620": "Неисправность в цепи генератора.",
+            "P0628": "Замыкание на массу в первичной цепи топливного насоса.",
+            "P0704": "Нестабильный сигнал датчика положения педали сцепления.",
+            "P0740": "Неисправность электромагнитного клапана муфты гидротрансформатора.",
+            "P0972": "Неисправность электромагнитного клапана А переключения передач.",
+            "P1000": "Цикл тестирования OBD не завершен. Ошибка исчезнет автоматически после езды.",
+            "P1260": "Блок управления двигателем заблокирован иммобилайзером.",
+            "P1632": "Интеллектуальная неисправность генератора.",
+            "P2100": "Неисправность цепи электромотора привода дроссельной заслонки.",
+            "P2135": "Неиспавность датчиков положения дроссельной заслонки и педали акселератора.",
+            "B1317": "Напряжение батареи слишком высокое (более 16 Вольт).",
+            "B1318": "Напряжение батареи слишком низкое (менее 10 Вольт).",
+            "B1342": "Внутренняя неисправность модуля управления.",
+            "B1600": "Модуль иммобилайзера не принял код ключа.",
+            "B1601": "От ключа иммобилайзера принят сигнал с неправильным кодом.",
+            "B1602": "От ключа иммобилайзера принят сигнал неправильного формата.",
+            "B1681": "Сигнал модуля иммобилайзера не принят трансивером.",
+            "B2139": "Не совпадает отклик на запрос иммобилайзера.",
+            "C1095": "Неисправность электромотора гидравлического насоса ABS.",
+            "C1099": "Неисправность электронасоса гидроусилителя руля (ЭГУР).",
+            "C1305": "Ошибочный сигнал продольного ускорения.",
+            "C1955": "Разрыв в цепи датчика угла поворота рулевого колеса.",
+            "C1956": "Неисправность в цепи датчика поворота рулевого колеса.",
+            "U0001": "Высокоскоростная шина CAN отключена или заглушена.",
+            "U0101": "Шина CAN потеряла связь с блоком управления трансмиссией (TCM).",
+            "U0121": "Шина CAN потеряла связь с модулем ABS.",
+            "U1147": "Используется неверный ключ иммобилайзера.",
+            "U1900": "Сбой передачи данных по шине CAN. Возможна потеря связи с приборной панелью."
         };
 
         function renderCustomDTC() {
             const list = document.getElementById('custom-dtc-list');
             let html = '';
             for (let code in customErrorsDB) {
-                html += `<div class="cmd-item"><span><b style="color:#ff3333;">${code}</b></span><span>${customErrorsDB[code]}</span><button class="del-btn" style="padding:8px; margin-top:5px;" onclick="delCustomDTC('${code}')">УДАЛИТЬ</button></div>`;
+                html += `
+                <div class="cmd-item">
+                    <span><b style="color:#ff3333;">${code}</b></span>
+                    <span>${customErrorsDB[code]}</span>
+                    <button class="del-btn" style="padding:8px; margin-top:5px;" onclick="delCustomDTC('${code}')">УДАЛИТЬ</button>
+                </div>`;
             }
-            if(html === '') html = '<div style="color:#666; margin-top:20px; font-size:12px; text-align:center;">База пуста.</div>';
+            if(html === '') html = '<div style="color:#666; margin-top:20px; font-size:12px; text-align:center;">Ваша пользовательская база пока пуста.</div>';
             list.innerHTML = html;
         }
 
         function addCustomDTC() {
             let code = document.getElementById('new-dtc-code').value.trim().toUpperCase();
             let desc = document.getElementById('new-dtc-desc').value.trim();
-            if(!code || !desc) return;
+            if(!code || !desc) return alert("Введите заводской код и описание неисправности!");
             customErrorsDB[code] = desc;
             localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
-            document.getElementById('new-dtc-code').value = ""; document.getElementById('new-dtc-desc').value = "";
+            document.getElementById('new-dtc-code').value = "";
+            document.getElementById('new-dtc-desc').value = "";
             renderCustomDTC();
+            alert("Код " + code + " успешно добавлен в базу!");
         }
 
         function delCustomDTC(code) {
-            delete customErrorsDB[code];
-            localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
-            renderCustomDTC();
+            if(confirm("Вы уверены, что хотите удалить код " + code + " из вашей базы?")) {
+                delete customErrorsDB[code];
+                localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
+                renderCustomDTC();
+            }
+        }
+
+        function exportDTC_CSV() {
+            let csv = '\uFEFFКод Ошибки;Описание Неисправности\n'; 
+            for (let code in customErrorsDB) {
+                csv += `${code};${customErrorsDB[code]}\n`;
+            }
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'x_conect_errors.csv');
+            a.click();
+        }
+
+        function importDTC_CSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let added = 0;
+                for(let i = 1; i < lines.length; i++) {
+                    let line = lines[i].trim();
+                    if(!line) continue;
+                    let parts = line.split(';');
+                    if(parts.length >= 2) {
+                        let code = parts[0].trim().toUpperCase();
+                        let desc = parts[1].trim();
+                        if(code && desc) {
+                            customErrorsDB[code] = desc;
+                            added++;
+                        }
+                    }
+                }
+                if(added > 0) {
+                    localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
+                    renderCustomDTC();
+                    alert("Успешно загружено кодов из Excel: " + added);
+                } else {
+                    alert("Не удалось найти коды. Убедитесь, что файл сохранен как CSV (с разделителями - точка с запятой).");
+                }
+                event.target.value = ''; 
+            };
+            reader.readAsText(file, 'utf-8');
         }
 
         function parseDTC(b1, b2) {
@@ -486,8 +611,10 @@
             }
             let html = `<div style="text-align:left; color:#ff3333; font-weight:bold; margin-bottom:10px;">НАЙДЕНО ОШИБОК: ${activeErrors.length}</div>`;
             activeErrors.forEach(err => {
-                let desc = customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный код.";
-                html += `<div class="error-card"><div class="error-code">${err.code}</div><div class="error-desc">${desc}</div></div>`;
+                // ПРИОРИТЕТ: СНАЧАЛА ТВОЯ БАЗА, ПОТОМ ЗАВОДСКАЯ
+                let desc = customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный заводской код неисправности.";
+                html += `<div class="error-card"><div class="error-code">${err.code}</div><div class="error-desc">${desc}</div>
+                <div style="font-size:10px; color:#666; margin-top:8px;">ИСТОЧНИК: ${err.module === '7E8' ? 'Моторный блок (PCM)' : 'Приборная панель (IPC)'}</div></div>`;
             });
             container.innerHTML = html;
         }
@@ -500,9 +627,9 @@
         }
 
         function clearDTC() {
-            if(confirm("Удалить все ошибки из памяти авто?")) {
+            if(confirm("Вы уверены, что хотите стереть все ошибки из памяти авто?")) {
                 sendWsCmd('dtc:clear');
-                setTimeout(() => { document.getElementById('dtc-results').innerHTML = '<div class="success-card">ПАМЯТЬ ОЧИЩЕНА</div>'; activeErrors = []; }, 1500);
+                setTimeout(() => { document.getElementById('dtc-results').innerHTML = '<div class="success-card">ПАМЯТЬ БЛОКОВ ОЧИЩЕНА</div>'; activeErrors = []; }, 1500);
             }
         }
 
@@ -519,7 +646,7 @@
         }
         function addCmd() {
             let p = document.getElementById('phrase').value.trim().toLowerCase(); let c = document.getElementById('canid').value.trim(); let r = document.getElementById('reply').value.trim();
-            if(!p || !c || !r) return; dynCmds.push({ phrase: p, canId: c, reply: r }); renderCmds();
+            if(!p || !c || !r) return alert("Заполните все поля!"); dynCmds.push({ phrase: p, canId: c, reply: r }); document.getElementById('phrase').value = ""; document.getElementById('canid').value = ""; document.getElementById('reply').value = ""; renderCmds();
         }
         function delCmd(i) { dynCmds.splice(i, 1); renderCmds(); }
         function saveCmds() {
@@ -543,12 +670,26 @@
                 if (typeof event.data === "string" && event.data.startsWith("dtc_raw:")) {
                     if (!dtcCheckActive) return; 
                     let parts = event.data.split(":")[1].split(","); let id = parts[0]; let hexBytes = parts.slice(1).map(h => parseInt(h, 16));
-                    // Парсинг (сокращенный для PWA)
+                    
                     if (hexBytes[1] === 0x58) { 
                         for (let i = 0; i < hexBytes[2] && (3 + i*2 + 1) < hexBytes.length; i++) {
                             let code = parseDTC(hexBytes[3 + i*2], hexBytes[3 + i*2 + 1]);
                             if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id});
                         }
+                    } else if (hexBytes[0] === 0x10 && hexBytes[3] === 0x58) { 
+                        dtcBuffer = []; 
+                        let code = parseDTC(hexBytes[5], hexBytes[6]);
+                        if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id});
+                        dtcBuffer.push(hexBytes[7]); 
+                    } else if (hexBytes[0] >= 0x21 && hexBytes[0] <= 0x2F) { 
+                        let data = dtcBuffer.concat(hexBytes.slice(1));
+                        dtcBuffer = [];
+                        for (let i = 0; i < data.length - 1; i += 2) {
+                            if (data[i] === 0x00 && data[i+1] === 0x00) continue; 
+                            let code = parseDTC(data[i], data[i+1]);
+                            if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id});
+                        }
+                        if (data.length % 2 !== 0) dtcBuffer.push(data[data.length - 1]);
                     }
                     return;
                 }
@@ -615,23 +756,20 @@
                 document.getElementById('mic-btn').style.borderColor = '#aa00ff';
                 document.getElementById('mic-text').innerText = 'АКСА: ОЖИДАНИЕ КОМАНДЫ';
                 
-                // Проверка пользовательских макросов
                 let matchedDynCmd = false;
                 for (let i = 0; i < dynCmds.length; i++) {
                     if (speechResult.includes(dynCmds[i].phrase)) {
                         sendWsCmd("id:" + dynCmds[i].canId);
                         let replyStr = dynCmds[i].reply;
-                        // Замена макросов
                         replyStr = replyStr.replaceAll("{RPM}", sysData.rpm).replaceAll("{SPEED}", envData.speed).replaceAll("{NEWS}", topNews);
                         speak(replyStr); matchedDynCmd = true; break;
                     }
                 }
                 if (matchedDynCmd) return;
                 
-                // Базовые навыки
                 if(speechResult.includes('тихо') || speechResult.includes('стоп')) { window.speechSynthesis.cancel(); }
                 
-                // ИНТЕГРАЦИЯ ЖУРНАЛА И АКСЫ
+                // === ИНТЕГРАЦИЯ С ГАРАЖОМ ===
                 else if(speechResult.includes('потратил') || speechResult.includes('расходы')) {
                     let currentMonth = new Date().getMonth();
                     let currentYear = new Date().getFullYear();
@@ -640,7 +778,6 @@
                         let logDate = new Date(log.timestamp);
                         if (logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear) monthTotal += parseInt(log.cost);
                     });
-                    
                     const months = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
                     speak(`В ${months[currentMonth]} вы потратили на машину ${monthTotal} рублей.`);
                     switchTab('garage', document.querySelectorAll('.nav-item')[1]);
@@ -652,19 +789,38 @@
                     } else {
                         let driven = currentMileage - lastOilChangeMileage;
                         let remain = 10000 - driven;
-                        if (remain <= 0) speak("Внимание! Интервал замены масла превышен. Срочно планируйте ТО.");
+                        if (remain <= 0) speak("Внимание! Интервал замены масла превышен. Срочно планируйте техническое обслуживание.");
                         else speak(`По моим расчетам, до замены масла осталось ${remain} километров.`);
                     }
                     switchTab('garage', document.querySelectorAll('.nav-item')[1]);
                 }
-                else if(speechResult.includes('добавь расход') || speechResult.includes('запиши бензин')) {
-                    speak("Пока я умею только читать журнал. Чтобы добавить запись, перейдите во вкладку Гараж и заполните форму.");
-                    switchTab('garage', document.querySelectorAll('.nav-item')[1]);
+                
+                // === ИНТЕГРАЦИЯ С ОШИБКАМИ (ДВЕ БАЗЫ) ===
+                else if(speechResult.includes('проверь ошибк') || speechResult.includes('сканируй')) {
+                    speak("Запускаю диагностику блоков двигателя и приборной панели.");
+                    switchTab('dtc', document.querySelectorAll('.nav-item')[3]);
+                    readDTC();
+                    setTimeout(() => {
+                        if (activeErrors.length === 0) {
+                            speak("Диагностика завершена. Ошибок в системе не обнаружено, всё чисто.");
+                        } else {
+                            let text = "Обнаружено " + activeErrors.length + " ошибок. ";
+                            activeErrors.forEach(err => {
+                                // Акса читает из обеих баз, приоритет - пользовательская
+                                text += "Код " + err.code + ". " + (customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный код неисправности.") + ". ";
+                            });
+                            speak(text);
+                        }
+                    }, 2000);
+                }
+                else if(speechResult.includes('удали ошибк') || speechResult.includes('сотри ошибк')) {
+                    speak("Отправляю команду на жесткую очистку памяти блоков.");
+                    switchTab('dtc', document.querySelectorAll('.nav-item')[3]);
+                    clearDTC();
+                    setTimeout(() => speak("Память успешно очищена. Если ошибка вернется, проверьте железо."), 2000);
                 }
 
-                // Старые навыки
-                else if(speechResult.includes('проверь ошибк')) { speak("Запускаю диагностику."); readDTC(); }
-                else if(speechResult.includes('удали ошибк')) { speak("Стираю память."); clearDTC(); }
+                // === БАЗОВЫЕ НАВЫКИ ===
                 else if(speechResult.includes('дневной')) { speak("Включаю дневной режим."); sendWsCmd('daymode:1'); }
                 else if(speechResult.includes('ночной')) { speak("Включаю ночной режим."); sendWsCmd('daymode:0'); }
                 else if(speechResult === 'акса' || speechResult.includes('акс')) { speak("Да, Женя. Я на связи."); }
