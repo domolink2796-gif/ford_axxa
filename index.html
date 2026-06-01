@@ -240,6 +240,13 @@
 
     <div id="tab-settings" class="tab-content">
         <h3 style="color:#fff; margin-top:0;">НАСТРОЙКИ СИСТЕМЫ</h3>
+        
+        <div class="box" style="align-items: stretch; margin-bottom: 15px;">
+            <div class="box-title" style="text-align: left; color:#00ffaa;">ЛОКАЦИЯ И ПАРКОВКА</div>
+            <button class="btn btn-blue" style="margin-top:10px; font-size:14px; padding:20px;" onclick="findMyCar()">📍 ГДЕ МОЯ МАШИНА?</button>
+            <div style="font-size:10px; color:#666; margin-top:8px; text-align:left;">Координаты парковки автоматически сохраняются в телефон при глушении двигателя.</div>
+        </div>
+
         <div class="box" style="align-items: stretch; text-align: left;">
             <label style="color:var(--neon); font-size:12px; font-weight:800; letter-spacing:1px;">СЕТЕВОЙ IP АДРЕС ПЛАТЫ:</label>
             <input type="text" id="esp-ip" class="cmd-input" style="font-size:18px; letter-spacing:2px; text-align:center;" value="192.168.4.1">
@@ -320,18 +327,56 @@
 
         // Данные телеметрии
         let sysData = { temp: 0, fuel: 0, ram: 0, cputemp: 0, mileage: 0, rpm: 0 };
-        let envData = { temp: 0, hum: 0, weatherDesc: 'неизвестно', city: 'неизвестно', speed: 0 };
+        let envData = { temp: 0, hum: 0, weatherDesc: 'неизвестно', city: 'неизвестно', speed: 0, lat: null, lon: null };
         let finData = { usd: 0, eur: 0, btc: 0 };
         let batData = { level: 0, charging: false };
         let topNews = "Нет свежих новостей";
         let isFirstConnect = true;
         let dynCmds = [];
+        
+        // База интервалов обслуживания для умных напоминаний (в километрах)
+        const serviceIntervals = {
+            "свеч": 30000,
+            "грм": 80000,
+            "антифриз": 60000,
+            "колодк": 40000
+        };
 
         // ====================================================
-        // БОРТОВОЙ ЖУРНАЛ (ГАРАЖ)
+        // БОРТОВОЙ ЖУРНАЛ И УМНЫЕ НАПОМИНАНИЯ
         // ====================================================
         let garageLogs = JSON.parse(localStorage.getItem('garage_logs') || '[]');
         let lastOilChangeMileage = parseInt(localStorage.getItem('last_oil_change') || '0');
+
+        function checkSmartReminders(currentMileage) {
+            let warnings = [];
+            
+            // Проверка масла
+            if (lastOilChangeMileage > 0) {
+                if (10000 - (currentMileage - lastOilChangeMileage) <= 500) warnings.push("масла");
+            }
+            
+            // Проверка остальных агрегатов по истории
+            let latestService = {};
+            garageLogs.forEach(log => {
+                let desc = log.desc.toLowerCase();
+                for (let key in serviceIntervals) {
+                    if (desc.includes(key) && !latestService[key]) {
+                        latestService[key] = log.mileage;
+                    }
+                }
+            });
+            
+            for (let key in latestService) {
+                if (serviceIntervals[key] - (currentMileage - latestService[key]) <= 500) {
+                    if (key === "свеч") warnings.push("свечей зажигания");
+                    if (key === "грм") warnings.push("ремня ГРМ");
+                    if (key === "антифриз") warnings.push("антифриза");
+                    if (key === "колодк") warnings.push("тормозных колодок");
+                }
+            }
+            return warnings;
+        }
 
         function updateGarageDashboard() {
             let currentMileage = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
@@ -535,7 +580,7 @@
         function addCustomDTC() {
             let code = document.getElementById('new-dtc-code').value.trim().toUpperCase();
             let desc = document.getElementById('new-dtc-desc').value.trim();
-            if(!code || !desc) return alert("Введите заводской код и описание неисправности!");
+            if(!code || !desc) return alert("Введите завод код и описание неисправности!");
             customErrorsDB[code] = desc;
             localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
             document.getElementById('new-dtc-code').value = "";
@@ -714,7 +759,14 @@
 
                 if (isFirstConnect) {
                     isFirstConnect = false;
-                    setTimeout(() => speak("Акса на связи. Система Икс Коннект запущена."), 1500);
+                    let currentMil = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
+                    let warnings = checkSmartReminders(currentMil);
+                    
+                    let text = "Акса на связи. Система Икс Коннект запущена. ";
+                    if (warnings.length > 0) {
+                        text += "Напоминаю, подходит срок замены: " + warnings.join(", ") + ".";
+                    }
+                    setTimeout(() => speak(text), 1500);
                 }
             };
             
@@ -722,6 +774,14 @@
                 document.getElementById('status-circle').className = "circle offline";
                 document.getElementById('status-text').innerText = "ПОИСК ESP32";
                 document.getElementById('baud-rate').innerText = "--- кбод";
+                
+                // === АВТОМАТИЧЕСКАЯ ФИКСАЦИЯ ПАРКОВКИ ===
+                // При разрыве связи с платой (глушение авто), сохраняем последние координаты
+                if (envData.lat && envData.lon) {
+                    localStorage.setItem('parked_lat', envData.lat);
+                    localStorage.setItem('parked_lon', envData.lon);
+                }
+
                 setTimeout(initWebSocket, 2000); 
             };
         }
@@ -740,12 +800,26 @@
         }
 
         // ====================================================
+        // ЛОКАЦИЯ ПАРКОВКИ (ГДЕ МОЯ МАШИНА)
+        // ====================================================
+        function findMyCar() {
+            let lat = localStorage.getItem('parked_lat');
+            let lon = localStorage.getItem('parked_lon');
+            if (lat && lon) {
+                // Универсальная ссылка на Яндекс Карты/Навигатор (прокладывает пеший или авто маршрут к точке)
+                let yandexUrl = `https://yandex.ru/maps/?rtext=~${lat},${lon}&rtt=auto`;
+                window.open(yandexUrl, '_blank');
+            } else {
+                alert("Координаты парковки еще не сохранены. Подключитесь к автомобилю (ESP32) хотя бы один раз, чтобы телефон запомнил локацию.");
+            }
+        }
+
+        // ====================================================
         // ПАРСЕР ГОЛОСОВЫХ СУММ (АКСА УМЕЕТ В МАТЕМАТИКУ)
         // ====================================================
         function parseSpokenCost(text) {
             let t = text.toLowerCase();
             
-            // Заменяем частые текстовые числа от распознавалки Google
             t = t.replace(/полторы\s*тысячи/g, "1500")
                  .replace(/одна\s*тысяча/g, "1000")
                  .replace(/две\s*тысячи/g, "2000")
@@ -757,22 +831,17 @@
                  .replace(/\bчетыреста\b/g, "400").replace(/\bпятьсот\b/g, "500").replace(/\bшестьсот\b/g, "600")
                  .replace(/\bсемьсот\b/g, "700").replace(/\bвосемьсот\b/g, "800").replace(/\bдевятьсот\b/g, "900");
 
-            // Ищем сложный паттерн: цифра + слово "тысяч/тыщ" + цифра (например: "3 тысячи 500" -> 3000 + 500)
             let m1 = t.match(/(\d+)\s*(?:тыс[а-я]*|тыщ)\s+(\d+)/);
             if (m1) return parseInt(m1[1]) * 1000 + parseInt(m1[2]);
 
-            // Ищем простой паттерн: цифра + слово "тысяч/тыщ" (например: "3 тысячи" -> 3000)
             let m2 = t.match(/(\d+)\s*(?:тыс[а-я]*|тыщ)/);
             if (m2) return parseInt(m2[1]) * 1000;
 
-            // Если Google распознал раздельно сотни: "2000 100" -> 2100
             let m3 = t.match(/(\d+000)\s+(\d{3})/);
             if (m3) return parseInt(m3[1]) + parseInt(m3[2]);
 
-            // Убираем случайные пробелы внутри цифр (например "3 500" -> "3500")
             t = t.replace(/(\d)\s+(?=\d{3}\b)/g, "$1");
             
-            // Если ничего сложного нет, просто берем первую найденную цифру
             let mSimple = t.match(/\d+/);
             return mSimple ? parseInt(mSimple[0]) : 0;
         }
@@ -835,7 +904,6 @@
                     }
                     switchTab('garage', document.querySelectorAll('.nav-item')[1]);
                 }
-                // === НОВАЯ ИНТЕГРАЦИЯ УМНОГО ПАРСЕРА С ГОЛОСОМ ===
                 else if(speechResult.includes('добавь') || speechResult.includes('запиши')) {
                     let cost = parseSpokenCost(speechResult);
                     
@@ -935,9 +1003,12 @@
 
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(function(pos) {
+                // ДОБАВЛЕНО: Сохраняем точные широту и долготу в переменные системы
+                envData.lat = pos.coords.latitude.toFixed(6);
+                envData.lon = pos.coords.longitude.toFixed(6);
                 envData.speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0; 
                 document.getElementById('speed').innerText = envData.speed;
-                if(ws && ws.readyState === 1) ws.send("gps:" + pos.coords.latitude.toFixed(4) + "," + pos.coords.longitude.toFixed(4) + "," + envData.speed);
+                if(ws && ws.readyState === 1) ws.send("gps:" + envData.lat + "," + envData.lon + "," + envData.speed);
             }, function(err) {}, { enableHighAccuracy: true });
         }
 
