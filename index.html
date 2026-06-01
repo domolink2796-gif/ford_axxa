@@ -334,7 +334,7 @@
         let lastOilChangeMileage = parseInt(localStorage.getItem('last_oil_change') || '0');
 
         function updateGarageDashboard() {
-            let currentMileage = sysData.mileage || 0;
+            let currentMileage = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
             
             if (lastOilChangeMileage > 0 && currentMileage > 0) {
                 let driven = currentMileage - lastOilChangeMileage;
@@ -376,20 +376,24 @@
             
             if(!desc) return alert("Введите описание работ или запчасти!");
             
+            // Если мы не подключены, берем последний сохраненный пробег из памяти телефона
+            let currentMil = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
+
             let log = {
                 id: Date.now(),
                 timestamp: new Date().toISOString(),
                 category: cat,
                 desc: desc,
                 cost: cost || 0,
-                mileage: sysData.mileage || 0
+                mileage: currentMil
             };
 
             garageLogs.unshift(log); 
             localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
             
-            if (cat === "ТО" && desc.toLowerCase().includes("масло")) {
-                lastOilChangeMileage = sysData.mileage || 0;
+            // Улучшенная проверка на замену масла (теперь сработает даже если категория Ремонт)
+            if ((cat === "ТО" || cat === "Ремонт") && desc.toLowerCase().includes("масл")) {
+                lastOilChangeMileage = currentMil;
                 localStorage.setItem('last_oil_change', lastOilChangeMileage);
             }
 
@@ -445,7 +449,6 @@
         let dtcBuffer = [];
         let customErrorsDB = JSON.parse(localStorage.getItem('custom_dtc') || '{}');
         
-        // ПОЛНАЯ ЗАВОДСКАЯ БАЗА FORD ИЗ ОРИГИНАЛА
         const fordErrorsDB = {
             "P0000": "Отсутствие кодов неисправностей в памяти системы.",
             "P0030": "Разрыв в цепи обогрева управляющего датчика кислорода (лямбда-зонд).",
@@ -611,7 +614,6 @@
             }
             let html = `<div style="text-align:left; color:#ff3333; font-weight:bold; margin-bottom:10px;">НАЙДЕНО ОШИБОК: ${activeErrors.length}</div>`;
             activeErrors.forEach(err => {
-                // ПРИОРИТЕТ: СНАЧАЛА ТВОЯ БАЗА, ПОТОМ ЗАВОДСКАЯ
                 let desc = customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный заводской код неисправности.";
                 html += `<div class="error-card"><div class="error-code">${err.code}</div><div class="error-desc">${desc}</div>
                 <div style="font-size:10px; color:#666; margin-top:8px;">ИСТОЧНИК: ${err.module === '7E8' ? 'Моторный блок (PCM)' : 'Приборная панель (IPC)'}</div></div>`;
@@ -706,6 +708,11 @@
                 sysData.temp = d.temp; sysData.fuel = d.fuel; sysData.mileage = d.mileage; sysData.rpm = d.rpm;
                 if(d.ram) sysData.ram = d.ram; if(d.cputemp) sysData.cputemp = d.cputemp;
 
+                // Сохраняем последний известный пробег для журнала (чтобы работал даже в оффлайне)
+                if (d.mileage && d.mileage > 0) {
+                    localStorage.setItem('last_known_mileage', d.mileage);
+                }
+
                 updateGarageDashboard();
 
                 if (isFirstConnect) {
@@ -769,8 +776,8 @@
                 
                 if(speechResult.includes('тихо') || speechResult.includes('стоп')) { window.speechSynthesis.cancel(); }
                 
-                // === ИНТЕГРАЦИЯ С ГАРАЖОМ ===
-                else if(speechResult.includes('потратил') || speechResult.includes('расходы')) {
+                // === ИНТЕГРАЦИЯ С ГАРАЖОМ (ЧТЕНИЕ) ===
+                else if(speechResult.includes('сколько потратил') || speechResult.includes('какие расходы')) {
                     let currentMonth = new Date().getMonth();
                     let currentYear = new Date().getFullYear();
                     let monthTotal = 0;
@@ -782,8 +789,8 @@
                     speak(`В ${months[currentMonth]} вы потратили на машину ${monthTotal} рублей.`);
                     switchTab('garage', document.querySelectorAll('.nav-item')[1]);
                 }
-                else if(speechResult.includes('замен') && speechResult.includes('масл')) {
-                    let currentMileage = sysData.mileage || 0;
+                else if(speechResult.includes('когда замен') && speechResult.includes('масл')) {
+                    let currentMileage = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
                     if (lastOilChangeMileage === 0) {
                         speak("У меня нет данных о прошлой замене масла. Добавьте запись в журнал.");
                     } else {
@@ -793,6 +800,50 @@
                         else speak(`По моим расчетам, до замены масла осталось ${remain} километров.`);
                     }
                     switchTab('garage', document.querySelectorAll('.nav-item')[1]);
+                }
+                // === ИНТЕГРАЦИЯ С ГАРАЖОМ (ГОЛОСОВОЕ ДОБАВЛЕНИЕ) ===
+                else if(speechResult.includes('добавь') || speechResult.includes('запиши')) {
+                    let match = speechResult.match(/\d+/);
+                    let cost = match ? parseInt(match[0]) : 0;
+                    
+                    if (cost > 0) {
+                        let cat = "Прочее";
+                        if(speechResult.includes('бензин') || speechResult.includes('заправк')) cat = "Бензин";
+                        else if(speechResult.includes('ремонт')) cat = "Ремонт";
+                        else if(speechResult.includes('запчаст')) cat = "Запчасти";
+                        else if(speechResult.includes('тюнинг')) cat = "Тюнинг";
+                        else if(speechResult.includes(' т о ') || speechResult.includes('масл') || speechResult.includes('обслуживани')) cat = "ТО";
+                        
+                        // Формируем красивое описание, вырезая слова-команды
+                        let desc = speechResult.replace(/(добавь|запиши|расход|потратил|рублей|рубля|рубль)/g, '').replace(/\d+/g, '').trim();
+                        if (desc === "") desc = "Голосовая запись";
+                        
+                        let currentMil = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
+                        
+                        let log = {
+                            id: Date.now(),
+                            timestamp: new Date().toISOString(),
+                            category: cat,
+                            desc: desc.charAt(0).toUpperCase() + desc.slice(1),
+                            cost: cost,
+                            mileage: currentMil
+                        };
+
+                        garageLogs.unshift(log);
+                        localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
+                        
+                        if ((cat === "ТО" || cat === "Ремонт") && desc.includes("масл")) {
+                            lastOilChangeMileage = currentMil;
+                            localStorage.setItem('last_oil_change', lastOilChangeMileage);
+                        }
+                        
+                        renderLogs();
+                        updateGarageDashboard();
+                        switchTab('garage', document.querySelectorAll('.nav-item')[1]);
+                        speak(`Записала в журнал. Категория: ${cat}, сумма: ${cost} рублей.`);
+                    } else {
+                        speak("Я не расслышала сумму. Повторите команду и обязательно назовите цифры.");
+                    }
                 }
                 
                 // === ИНТЕГРАЦИЯ С ОШИБКАМИ (ДВЕ БАЗЫ) ===
@@ -806,7 +857,6 @@
                         } else {
                             let text = "Обнаружено " + activeErrors.length + " ошибок. ";
                             activeErrors.forEach(err => {
-                                // Акса читает из обеих баз, приоритет - пользовательская
                                 text += "Код " + err.code + ". " + (customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный код неисправности.") + ". ";
                             });
                             speak(text);
