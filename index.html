@@ -303,8 +303,7 @@
     </div>
 
     <script>
-        window.weatherFetched = false;
-
+        // === ЛОГИКА ВКЛАДОК ===
         function switchTab(tabId, element) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active-tab'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -313,19 +312,11 @@
             if(tabId === 'garage') renderLogs();
         }
 
-        // Умное получение IP: если PWA открыто с памяти ESP32 - вернет его хост, если как PWA с телефона - берет сохраненный.
-        function getEspIp() { 
-            if (location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.hostname !== "") {
-                return location.hostname;
-            }
-            return localStorage.getItem('esp_ip') || "192.168.4.1"; 
-        }
-
+        function getEspIp() { return localStorage.getItem('esp_ip') || "192.168.4.1"; }
         function saveIPAndConnect() {
             let ip = document.getElementById('esp-ip').value.trim();
             if(ip) { localStorage.setItem('esp_ip', ip); initWebSocket(); fetchCmds(); }
         }
-
         function setColor(val) {
             fetch('http://' + getEspIp() + '/sys?c=' + val).catch(e => {});
             document.body.innerHTML = '<div style="margin-top:50%;font-size:35px;color:#0ff;font-weight:bold;text-shadow:0 0 15px #0ff;letter-spacing:3px;text-align:center;">ПЕРЕЗАГРУЗКА...</div>';
@@ -334,6 +325,7 @@
 
         document.getElementById('esp-ip').value = getEspIp();
 
+        // Данные телеметрии
         let sysData = { temp: 0, fuel: 0, ram: 0, cputemp: 0, mileage: 0, rpm: 0 };
         let envData = { temp: 0, hum: 0, weatherDesc: 'неизвестно', city: 'неизвестно', speed: 0, lat: null, lon: null };
         let finData = { usd: 0, eur: 0, btc: 0 };
@@ -342,29 +334,29 @@
         let isFirstConnect = true;
         let dynCmds = [];
         
-        const serviceIntervals = { "свеч": 30000, "грм": 80000, "антифриз": 60000, "колодк": 40000 };
+        // База интервалов обслуживания для умных напоминаний (в километрах)
+        const serviceIntervals = {
+            "свеч": 30000,
+            "грм": 80000,
+            "антифриз": 60000,
+            "колодк": 40000
+        };
+
+        // ====================================================
+        // БОРТОВОЙ ЖУРНАЛ И УМНЫЕ НАПОМИНАНИЯ
+        // ====================================================
         let garageLogs = JSON.parse(localStorage.getItem('garage_logs') || '[]');
         let lastOilChangeMileage = parseInt(localStorage.getItem('last_oil_change') || '0');
 
-        function getWeatherDesc(code) {
-            if(code === 0) return "ясно";
-            if(code === 1 || code === 2) return "переменная облачность";
-            if(code === 3) return "пасмурно";
-            if(code >= 45 && code <= 48) return "туман";
-            if(code >= 51 && code <= 57) return "морось";
-            if(code >= 61 && code <= 67) return "идет дождь";
-            if(code >= 71 && code <= 77) return "идет снег";
-            if(code >= 80 && code <= 82) return "ливень";
-            if(code >= 85 && code <= 86) return "снегопад";
-            if(code >= 95) return "гроза";
-            return "неизвестно";
-        }
-
         function checkSmartReminders(currentMileage) {
             let warnings = [];
+            
+            // Проверка масла
             if (lastOilChangeMileage > 0) {
                 if (10000 - (currentMileage - lastOilChangeMileage) <= 500) warnings.push("масла");
             }
+            
+            // Проверка остальных агрегатов по истории
             let latestService = {};
             garageLogs.forEach(log => {
                 let desc = log.desc.toLowerCase();
@@ -374,6 +366,7 @@
                     }
                 }
             });
+            
             for (let key in latestService) {
                 if (serviceIntervals[key] - (currentMileage - latestService[key]) <= 500) {
                     if (key === "свеч") warnings.push("свечей зажигания");
@@ -387,6 +380,7 @@
 
         function updateGarageDashboard() {
             let currentMileage = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
+            
             if (lastOilChangeMileage > 0 && currentMileage > 0) {
                 let driven = currentMileage - lastOilChangeMileage;
                 let remain = 10000 - driven;
@@ -401,15 +395,21 @@
                 else if(percent > 75) bar.style.background = '#ffaa00';
                 else bar.style.background = 'linear-gradient(90deg, #00ffaa, #0099ff)';
             }
+
             let currentMonth = new Date().getMonth();
             let currentYear = new Date().getFullYear();
-            let monthTotal = 0; let grandTotal = 0;
+            let monthTotal = 0;
+            let grandTotal = 0;
+
             garageLogs.forEach(log => {
                 let logDate = new Date(log.timestamp);
                 let cost = parseInt(log.cost) || 0;
                 grandTotal += cost;
-                if (logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear) monthTotal += cost;
+                if (logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear) {
+                    monthTotal += cost;
+                }
             });
+
             document.getElementById('month-expense').innerText = monthTotal.toLocaleString();
             document.getElementById('total-expense').innerText = grandTotal.toLocaleString();
         }
@@ -418,28 +418,51 @@
             let cat = document.getElementById('log-category').value;
             let desc = document.getElementById('log-desc').value.trim();
             let cost = document.getElementById('log-cost').value.trim();
+            
             if(!desc) return alert("Введите описание работ или запчасти!");
+            
             let currentMil = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
-            let log = { id: Date.now(), timestamp: new Date().toISOString(), category: cat, desc: desc, cost: cost || 0, mileage: currentMil };
-            garageLogs.unshift(log); localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
+
+            let log = {
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                category: cat,
+                desc: desc,
+                cost: cost || 0,
+                mileage: currentMil
+            };
+
+            garageLogs.unshift(log); 
+            localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
+            
             if ((cat === "ТО" || cat === "Ремонт") && desc.toLowerCase().includes("масл")) {
-                lastOilChangeMileage = currentMil; localStorage.setItem('last_oil_change', lastOilChangeMileage);
+                lastOilChangeMileage = currentMil;
+                localStorage.setItem('last_oil_change', lastOilChangeMileage);
             }
-            document.getElementById('log-desc').value = ""; document.getElementById('log-cost').value = "";
-            renderLogs(); updateGarageDashboard(); speak("Запись добавлена в бортовой журнал.");
+
+            document.getElementById('log-desc').value = "";
+            document.getElementById('log-cost').value = "";
+            renderLogs();
+            updateGarageDashboard();
+            speak("Запись добавлена в бортовой журнал.");
         }
 
         function delLogEntry(id) {
             if(confirm("Удалить эту запись из журнала?")) {
                 garageLogs = garageLogs.filter(log => log.id !== id);
                 localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
-                renderLogs(); updateGarageDashboard();
+                renderLogs();
+                updateGarageDashboard();
             }
         }
 
         function renderLogs() {
             const list = document.getElementById('log-list');
-            if (garageLogs.length === 0) { list.innerHTML = '<div style="color:#666; font-size:12px; text-align:center;">Журнал пуст. Начните вести историю авто.</div>'; return; }
+            if (garageLogs.length === 0) {
+                list.innerHTML = '<div style="color:#666; font-size:12px; text-align:center;">Журнал пуст. Начните вести историю авто.</div>';
+                return;
+            }
+
             let html = '';
             garageLogs.forEach(log => {
                 let dateStr = new Date(log.timestamp).toLocaleDateString('ru-RU');
@@ -447,6 +470,7 @@
                 if(log.category === "Ремонт") color = "#ff3333";
                 if(log.category === "Бензин") color = "#0099ff";
                 if(log.category === "Тюнинг") color = "#b300ff";
+
                 html += `
                 <div class="log-card" style="border-left-color: ${color}">
                     <div class="log-date">${dateStr} • Пробег: ${log.mileage} км</div>
@@ -460,42 +484,81 @@
             list.innerHTML = html;
         }
 
-        let activeErrors = []; let dtcCheckActive = false; let dtcBuffer = [];
+        // ====================================================
+        // БАЗА ДАННЫХ И ЛОГИКА ОШИБОК (DTC)
+        // ====================================================
+        let activeErrors = [];
+        let dtcCheckActive = false;
+        let dtcBuffer = [];
         let customErrorsDB = JSON.parse(localStorage.getItem('custom_dtc') || '{}');
+        
         const fordErrorsDB = {
-            "P0000": "Отсутствие кодов неисправностей в памяти системы.", "P0030": "Разрыв в цепи обогрева управляющего датчика кислорода (лямбда-зонд).",
-            "P0031": "Низкое напряжение в цепи обогрева датчика кислорода.", "P0032": "Высокое напряжение в цепи обогрева датчика кислорода.",
-            "P0036": "Разрыв в цепи обогрева каталитического нейтрализатора.", "P0071": "Неисправность в цепи датчика температуры воздуха в салоне.",
-            "P0106": "Нарушение работы датчика абсолютного давления (MAP).", "P0112": "Замыкание на массу датчика температуры всасываемого воздуха.",
-            "P0115": "Ошибка сигнала системы охлаждения двигателя.", "P0116": "Чрезмерно низкий уровень сигнала датчика охлаждающей жидкости.",
-            "P0122": "Замыкание на массу в цепи датчика положения педали акселератора.", "P0130": "Разрыв в цепи управляющего датчика кислорода.",
-            "P0133": "Медленное реагирование управляющего датчика кислорода.", "P0171": "Слишком бедная топливная смесь. Возможен подсос воздуха.",
-            "P0172": "Слишком богатая топливная смесь.", "P0201": "Неисправность в цепи форсунки 1-го цилиндра.",
-            "P0202": "Неисправность в цепи форсунки 2-го цилиндра.", "P0203": "Неисправность в цепи форсунки 3-го цилиндра.",
-            "P0204": "Неисправность в цепи форсунки 4-го цилиндра.", "P0222": "Замыкание на массу в цепи датчика положения дроссельной заслонки.",
-            "P0231": "Низкое напряжение на входе топливного насоса.", "P0300": "Обнаружены множественные или случайные пропуски зажигания.",
-            "P0301": "Пропуски зажигания в первом цилиндре. Проверьте свечу или катушку.", "P0302": "Пропуски зажигания во втором цилиндре. Проверьте свечу или катушку.",
-            "P0303": "Пропуски зажигания в третьем цилиндре. Проверьте свечу или катушку.", "P0304": "Пропуски зажигания в четвертом цилиндре. Проверьте свечу или катушку.",
-            "P0315": "Система не распознала датчик положения коленчатого вала.", "P0324": "Ошибка связи с датчиком детонации.",
-            "P0335": "Нестабильный сигнал от датчика коленвала (ДПКВ).", "P0340": "Отсутствие сигнала датчика положения распределительного вала.",
-            "P0351": "Неисправность в первичном контуре катушки зажигания А.", "P0352": "Неисправность в первичном контуре катушки зажигания В.",
-            "P0420": "Низкая эффективность работы катализатора.", "P0500": "Нестабильный сигнал датчика скорости автомобиля.",
-            "P0511": "Неисправность в цепи регулятора холостого хода.", "P0560": "Слишком высокое напряжение в системе бортового электропитания.",
-            "P0562": "Слишком низкое напряжение бортовой сети.", "P0603": "Ошибка энергонезависимой памяти (KAM) модуля управления.",
-            "P0610": "Неправильные настройки блока управления двигателем.", "P0620": "Неисправность в цепи генератора.",
-            "P0628": "Замыкание на массу в первичной цепи топливного насоса.", "P0704": "Нестабильный сигнал датчика положения педали сцепления.",
-            "P0740": "Неисправность электромагнитного клапана муфты гидротрансформатора.", "P0972": "Неисправность электромагнитного клапана А переключения передач.",
-            "P1000": "Цикл тестирования OBD не завершен. Ошибка исчезнет автоматически после езды.", "P1260": "Блок управления двигателем заблокирован иммобилайзером.",
-            "P1632": "Интеллектуальная неисправность генератора.", "P2100": "Неисправность цепи электромотора привода дроссельной заслонки.",
-            "P2135": "Неиспавность датчиков положения дроссельной заслонки и педали акселератора.", "B1317": "Напряжение батареи слишком высокое (более 16 Вольт).",
-            "B1318": "Напряжение батареи слишком низкое (менее 10 Вольт).", "B1342": "Внутренняя неисправность модуля управления.",
-            "B1600": "Модуль иммобилайзера не принял код ключа.", "B1601": "От ключа иммобилайзера принят сигнал с неправильным кодом.",
-            "B1602": "От ключа иммобилайзера принят сигнал неправильного формата.", "B1681": "Сигнал модуля иммобилайзера не принят трансивером.",
-            "B2139": "Не совпадает отклик на запрос иммобилайзера.", "C1095": "Неисправность электромотора гидравлического насоса ABS.",
-            "C1099": "Неисправность электронасоса гидроусилителя руля (ЭГУР).", "C1305": "Ошибочный сигнал продольного ускорения.",
-            "C1955": "Разрыв в цепи датчика угла поворота рулевого колеса.", "C1956": "Неисправность в цепи датчика поворота рулевого колеса.",
-            "U0001": "Высокоскоростная шина CAN отключена или заглушена.", "U0101": "Шина CAN потеряла связь с блоком управления трансмиссией (TCM).",
-            "U0121": "Шина CAN потеряла связь с модулем ABS.", "U1147": "Используется неверный ключ иммобилайзера.",
+            "P0000": "Отсутствие кодов неисправностей в памяти системы.",
+            "P0030": "Разрыв в цепи обогрева управляющего датчика кислорода (лямбда-зонд).",
+            "P0031": "Низкое напряжение в цепи обогрева датчика кислорода.",
+            "P0032": "Высокое напряжение в цепи обогрева датчика кислорода.",
+            "P0036": "Разрыв в цепи обогрева каталитического нейтрализатора.",
+            "P0071": "Неисправность в цепи датчика температуры воздуха в салоне.",
+            "P0106": "Нарушение работы датчика абсолютного давления (MAP).",
+            "P0112": "Замыкание на массу датчика температуры всасываемого воздуха.",
+            "P0115": "Ошибка сигнала системы охлаждения двигателя.",
+            "P0116": "Чрезмерно низкий уровень сигнала датчика охлаждающей жидкости.",
+            "P0122": "Замыкание на массу в цепи датчика положения педали акселератора.",
+            "P0130": "Разрыв в цепи управляющего датчика кислорода.",
+            "P0133": "Медленное реагирование управляющего датчика кислорода.",
+            "P0171": "Слишком бедная топливная смесь. Возможен подсос воздуха.",
+            "P0172": "Слишком богатая топливная смесь.",
+            "P0201": "Неисправность в цепи форсунки 1-го цилиндра.",
+            "P0202": "Неисправность в цепи форсунки 2-го цилиндра.",
+            "P0203": "Неисправность в цепи форсунки 3-го цилиндра.",
+            "P0204": "Неисправность в цепи форсунки 4-го цилиндра.",
+            "P0222": "Замыкание на массу в цепи датчика положения дроссельной заслонки.",
+            "P0231": "Низкое напряжение на входе топливного насоса.",
+            "P0300": "Обнаружены множественные или случайные пропуски зажигания.",
+            "P0301": "Пропуски зажигания в первом цилиндре. Проверьте свечу или катушку.",
+            "P0302": "Пропуски зажигания во втором цилиндре. Проверьте свечу или катушку.",
+            "P0303": "Пропуски зажигания в третьем цилиндре. Проверьте свечу или катушку.",
+            "P0304": "Пропуски зажигания в четвертом цилиндре. Проверьте свечу или катушку.",
+            "P0315": "Система не распознала датчик положения коленчатого вала.",
+            "P0324": "Ошибка связи с датчиком детонации.",
+            "P0335": "Нестабильный сигнал от датчика коленвала (ДПКВ).",
+            "P0340": "Отсутствие сигнала датчика положения распределительного вала.",
+            "P0351": "Неисправность в первичном контуре катушки зажигания А.",
+            "P0352": "Неисправность в первичном контуре катушки зажигания В.",
+            "P0420": "Низкая эффективность работы катализатора.",
+            "P0500": "Нестабильный сигнал датчика скорости автомобиля.",
+            "P0511": "Неисправность в цепи регулятора холостого хода.",
+            "P0560": "Слишком высокое напряжение в системе бортового электропитания.",
+            "P0562": "Слишком низкое напряжение бортовой сети.",
+            "P0603": "Ошибка энергонезависимой памяти (KAM) модуля управления.",
+            "P0610": "Неправильные настройки блока управления двигателем.",
+            "P0620": "Неисправность в цепи генератора.",
+            "P0628": "Замыкание на массу в первичной цепи топливного насоса.",
+            "P0704": "Нестабильный сигнал датчика положения педали сцепления.",
+            "P0740": "Неисправность электромагнитного клапана муфты гидротрансформатора.",
+            "P0972": "Неисправность электромагнитного клапана А переключения передач.",
+            "P1000": "Цикл тестирования OBD не завершен. Ошибка исчезнет автоматически после езды.",
+            "P1260": "Блок управления двигателем заблокирован иммобилайзером.",
+            "P1632": "Интеллектуальная неисправность генератора.",
+            "P2100": "Неисправность цепи электромотора привода дроссельной заслонки.",
+            "P2135": "Неиспавность датчиков положения дроссельной заслонки и педали акселератора.",
+            "B1317": "Напряжение батареи слишком высокое (более 16 Вольт).",
+            "B1318": "Напряжение батареи слишком низкое (менее 10 Вольт).",
+            "B1342": "Внутренняя неисправность модуля управления.",
+            "B1600": "Модуль иммобилайзера не принял код ключа.",
+            "B1601": "От ключа иммобилайзера принят сигнал с неправильным кодом.",
+            "B1602": "От ключа иммобилайзера принят сигнал неправильного формата.",
+            "B1681": "Сигнал модуля иммобилайзера не принят трансивером.",
+            "B2139": "Не совпадает отклик на запрос иммобилайзера.",
+            "C1095": "Неисправность электромотора гидравлического насоса ABS.",
+            "C1099": "Неисправность электронасоса гидроусилителя руля (ЭГУР).",
+            "C1305": "Ошибочный сигнал продольного ускорения.",
+            "C1955": "Разрыв в цепи датчика угла поворота рулевого колеса.",
+            "C1956": "Неисправность в цепи датчика поворота рулевого колеса.",
+            "U0001": "Высокоскоростная шина CAN отключена или заглушена.",
+            "U0101": "Шина CAN потеряла связь с блоком управления трансмиссией (TCM).",
+            "U0121": "Шина CAN потеряла связь с модулем ABS.",
+            "U1147": "Используется неверный ключ иммобилайзера.",
             "U1900": "Сбой передачи данных по шине CAN. Возможна потеря связи с приборной панелью."
         };
 
@@ -503,7 +566,12 @@
             const list = document.getElementById('custom-dtc-list');
             let html = '';
             for (let code in customErrorsDB) {
-                html += `<div class="cmd-item"><span><b style="color:#ff3333;">${code}</b></span><span>${customErrorsDB[code]}</span><button class="del-btn" style="padding:8px; margin-top:5px;" onclick="delCustomDTC('${code}')">УДАЛИТЬ</button></div>`;
+                html += `
+                <div class="cmd-item">
+                    <span><b style="color:#ff3333;">${code}</b></span>
+                    <span>${customErrorsDB[code]}</span>
+                    <button class="del-btn" style="padding:8px; margin-top:5px;" onclick="delCustomDTC('${code}')">УДАЛИТЬ</button>
+                </div>`;
             }
             if(html === '') html = '<div style="color:#666; margin-top:20px; font-size:12px; text-align:center;">Ваша пользовательская база пока пуста.</div>';
             list.innerHTML = html;
@@ -513,40 +581,63 @@
             let code = document.getElementById('new-dtc-code').value.trim().toUpperCase();
             let desc = document.getElementById('new-dtc-desc').value.trim();
             if(!code || !desc) return alert("Введите завод код и описание неисправности!");
-            customErrorsDB[code] = desc; localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
-            document.getElementById('new-dtc-code').value = ""; document.getElementById('new-dtc-desc').value = "";
-            renderCustomDTC(); alert("Код " + code + " успешно добавлен в базу!");
+            customErrorsDB[code] = desc;
+            localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
+            document.getElementById('new-dtc-code').value = "";
+            document.getElementById('new-dtc-desc').value = "";
+            renderCustomDTC();
+            alert("Код " + code + " успешно добавлен в базу!");
         }
 
         function delCustomDTC(code) {
             if(confirm("Вы уверены, что хотите удалить код " + code + " из вашей базы?")) {
-                delete customErrorsDB[code]; localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB)); renderCustomDTC();
+                delete customErrorsDB[code];
+                localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
+                renderCustomDTC();
             }
         }
 
         function exportDTC_CSV() {
             let csv = '\uFEFFКод Ошибки;Описание Неисправности\n'; 
-            for (let code in customErrorsDB) csv += `${code};${customErrorsDB[code]}\n`;
+            for (let code in customErrorsDB) {
+                csv += `${code};${customErrorsDB[code]}\n`;
+            }
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.setAttribute('href', url); a.setAttribute('download', 'x_conect_errors.csv'); a.click();
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'x_conect_errors.csv');
+            a.click();
         }
 
         function importDTC_CSV(event) {
-            const file = event.target.files[0]; if (!file) return;
+            const file = event.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const text = e.target.result; const lines = text.split('\n'); let added = 0;
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let added = 0;
                 for(let i = 1; i < lines.length; i++) {
-                    let line = lines[i].trim(); if(!line) continue;
+                    let line = lines[i].trim();
+                    if(!line) continue;
                     let parts = line.split(';');
                     if(parts.length >= 2) {
-                        let code = parts[0].trim().toUpperCase(); let desc = parts[1].trim();
-                        if(code && desc) { customErrorsDB[code] = desc; added++; }
+                        let code = parts[0].trim().toUpperCase();
+                        let desc = parts[1].trim();
+                        if(code && desc) {
+                            customErrorsDB[code] = desc;
+                            added++;
+                        }
                     }
                 }
-                if(added > 0) { localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB)); renderCustomDTC(); alert("Успешно загружено кодов из Excel: " + added); } 
-                else { alert("Не удалось найти коды. Убедитесь, что файл сохранен как CSV (с разделителями - точка с запятой)."); }
+                if(added > 0) {
+                    localStorage.setItem('custom_dtc', JSON.stringify(customErrorsDB));
+                    renderCustomDTC();
+                    alert("Успешно загружено кодов из Excel: " + added);
+                } else {
+                    alert("Не удалось найти коды. Убедитесь, что файл сохранен как CSV (с разделителями - точка с запятой).");
+                }
                 event.target.value = ''; 
             };
             reader.readAsText(file, 'utf-8');
@@ -561,7 +652,9 @@
 
         function renderDTC() {
             const container = document.getElementById('dtc-results');
-            if (activeErrors.length === 0) { container.innerHTML = '<div class="success-card">ОШИБОК В СИСТЕМЕ НЕ ОБНАРУЖЕНО</div>'; return; }
+            if (activeErrors.length === 0) {
+                container.innerHTML = '<div class="success-card">ОШИБОК В СИСТЕМЕ НЕ ОБНАРУЖЕНО</div>'; return;
+            }
             let html = `<div style="text-align:left; color:#ff3333; font-weight:bold; margin-bottom:10px;">НАЙДЕНО ОШИБОК: ${activeErrors.length}</div>`;
             activeErrors.forEach(err => {
                 let desc = customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный заводской код неисправности.";
@@ -585,96 +678,177 @@
             }
         }
 
-        function fetchCmds() { fetch('http://' + getEspIp() + '/api/commands').then(r => r.json()).then(d => { dynCmds = d; renderCmds(); }).catch(e => {}); }
-        function renderCmds() { document.getElementById('cmd-list').innerHTML = dynCmds.map((c, i) => `<div class="cmd-item"><span><b>Фраза:</b> "${c.phrase}"</span><span><b>CAN ID:</b> ${c.canId}</span><span><b>Ответ:</b> ${c.reply}</span><button class="del-btn" onclick="delCmd(${i})">УДАЛИТЬ</button></div>`).join(''); }
+        // ====================================================
+        // ДИНАМИЧЕСКИЕ КОМАНДЫ
+        // ====================================================
+        function fetchCmds() {
+            fetch('http://' + getEspIp() + '/api/commands').then(r => r.json()).then(d => { dynCmds = d; renderCmds(); }).catch(e => {});
+        }
+        function renderCmds() {
+            document.getElementById('cmd-list').innerHTML = dynCmds.map((c, i) =>
+                `<div class="cmd-item"><span><b>Фраза:</b> "${c.phrase}"</span><span><b>CAN ID:</b> ${c.canId}</span><span><b>Ответ:</b> ${c.reply}</span><button class="del-btn" onclick="delCmd(${i})">УДАЛИТЬ</button></div>`
+            ).join('');
+        }
         function addCmd() {
             let p = document.getElementById('phrase').value.trim().toLowerCase(); let c = document.getElementById('canid').value.trim(); let r = document.getElementById('reply').value.trim();
             if(!p || !c || !r) return alert("Заполните все поля!"); dynCmds.push({ phrase: p, canId: c, reply: r }); document.getElementById('phrase').value = ""; document.getElementById('canid').value = ""; document.getElementById('reply').value = ""; renderCmds();
         }
         function delCmd(i) { dynCmds.splice(i, 1); renderCmds(); }
-        function saveCmds() { fetch('http://' + getEspIp() + '/api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynCmds) }).then(() => alert('Сохранено в ПЗУ!')); }
+        function saveCmds() {
+            fetch('http://' + getEspIp() + '/api/commands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynCmds) }).then(() => alert('Сохранено в ПЗУ!'));
+        }
 
+        // ====================================================
+        // WEBSOCKET И ОСНОВНАЯ ЛОГИКА
+        // ====================================================
         var ws;
         function initWebSocket() {
             if(ws) ws.close();
             ws = new WebSocket('ws://' + getEspIp() + ':81/');
-            ws.onopen = function() { document.getElementById('status-circle').className = "circle online"; document.getElementById('status-text').innerText = "ONLINE"; };
+            
+            ws.onopen = function() {
+                document.getElementById('status-circle').className = "circle online";
+                document.getElementById('status-text').innerText = "ONLINE";
+            };
+            
             ws.onmessage = function(event) {
                 if (typeof event.data === "string" && event.data.startsWith("dtc_raw:")) {
                     if (!dtcCheckActive) return; 
                     let parts = event.data.split(":")[1].split(","); let id = parts[0]; let hexBytes = parts.slice(1).map(h => parseInt(h, 16));
+                    
                     if (hexBytes[1] === 0x58) { 
                         for (let i = 0; i < hexBytes[2] && (3 + i*2 + 1) < hexBytes.length; i++) {
                             let code = parseDTC(hexBytes[3 + i*2], hexBytes[3 + i*2 + 1]);
                             if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id});
                         }
                     } else if (hexBytes[0] === 0x10 && hexBytes[3] === 0x58) { 
-                        dtcBuffer = []; let code = parseDTC(hexBytes[5], hexBytes[6]);
-                        if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id}); dtcBuffer.push(hexBytes[7]); 
+                        dtcBuffer = []; 
+                        let code = parseDTC(hexBytes[5], hexBytes[6]);
+                        if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id});
+                        dtcBuffer.push(hexBytes[7]); 
                     } else if (hexBytes[0] >= 0x21 && hexBytes[0] <= 0x2F) { 
-                        let data = dtcBuffer.concat(hexBytes.slice(1)); dtcBuffer = [];
+                        let data = dtcBuffer.concat(hexBytes.slice(1));
+                        dtcBuffer = [];
                         for (let i = 0; i < data.length - 1; i += 2) {
                             if (data[i] === 0x00 && data[i+1] === 0x00) continue; 
                             let code = parseDTC(data[i], data[i+1]);
                             if (!activeErrors.find(e => e.code === code)) activeErrors.push({code: code, module: id});
                         }
                         if (data.length % 2 !== 0) dtcBuffer.push(data[data.length - 1]);
-                    } return;
+                    }
+                    return;
                 }
+                
                 var d = JSON.parse(event.data);
                 if (d.update_cmds) { fetchCmds(); return; }
                 
-                document.getElementById('rpm').innerText = d.rpm; document.getElementById('temp').innerText = (d.temp > -40) ? d.temp : "--";
-                document.getElementById('fuel').innerText = d.fuel; document.getElementById('mileage').innerText = d.mileage;
+                document.getElementById('rpm').innerText = d.rpm;
+                document.getElementById('temp').innerText = (d.temp > -40) ? d.temp : "--";
+                document.getElementById('fuel').innerText = d.fuel;
+                document.getElementById('mileage').innerText = d.mileage;
                 document.getElementById('baud-rate').innerText = d.baud + " кбод";
                 
                 sysData.temp = d.temp; sysData.fuel = d.fuel; sysData.mileage = d.mileage; sysData.rpm = d.rpm;
                 if(d.ram) sysData.ram = d.ram; if(d.cputemp) sysData.cputemp = d.cputemp;
 
-                if (d.mileage && d.mileage > 0) localStorage.setItem('last_known_mileage', d.mileage);
+                if (d.mileage && d.mileage > 0) {
+                    localStorage.setItem('last_known_mileage', d.mileage);
+                }
+
                 updateGarageDashboard();
 
                 if (isFirstConnect) {
                     isFirstConnect = false;
                     let currentMil = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
                     let warnings = checkSmartReminders(currentMil);
+                    
                     let text = "Акса на связи. Система Икс Коннект запущена. ";
-                    if (warnings.length > 0) text += "Напоминаю, подходит срок замены: " + warnings.join(", ") + ".";
+                    if (warnings.length > 0) {
+                        text += "Напоминаю, подходит срок замены: " + warnings.join(", ") + ".";
+                    }
                     setTimeout(() => speak(text), 1500);
                 }
             };
+            
             ws.onclose = function() { 
-                document.getElementById('status-circle').className = "circle offline"; document.getElementById('status-text').innerText = "ПОИСК ESP32"; document.getElementById('baud-rate').innerText = "--- кбод";
-                if (envData.lat && envData.lon) { localStorage.setItem('parked_lat', envData.lat); localStorage.setItem('parked_lon', envData.lon); }
+                document.getElementById('status-circle').className = "circle offline";
+                document.getElementById('status-text').innerText = "ПОИСК ESP32";
+                document.getElementById('baud-rate').innerText = "--- кбод";
+                
+                // === АВТОМАТИЧЕСКАЯ ФИКСАЦИЯ ПАРКОВКИ ===
+                // При разрыве связи с платой (глушение авто), сохраняем последние координаты
+                if (envData.lat && envData.lon) {
+                    localStorage.setItem('parked_lat', envData.lat);
+                    localStorage.setItem('parked_lon', envData.lon);
+                }
+
                 setTimeout(initWebSocket, 2000); 
             };
         }
 
-        function sendWsCmd(cmd) { if(ws && ws.readyState === 1) { ws.send(cmd); } else { fetch('http://' + getEspIp() + '/cmd?act=' + cmd).catch(e=>{}); } }
+        function sendWsCmd(cmd) {
+            if(ws && ws.readyState === 1) { ws.send(cmd); } 
+            else { fetch('http://' + getEspIp() + '/cmd?act=' + cmd).catch(e=>{}); }
+        }
 
         function speak(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); let msg = new SpeechSynthesisUtterance(text); msg.lang = 'ru-RU'; window.speechSynthesis.speak(msg);
+                window.speechSynthesis.cancel();
+                let msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'ru-RU'; window.speechSynthesis.speak(msg);
             }
         }
 
+        // ====================================================
+        // ЛОКАЦИЯ ПАРКОВКИ (ГДЕ МОЯ МАШИНА)
+        // ====================================================
         function findMyCar() {
-            let lat = localStorage.getItem('parked_lat'); let lon = localStorage.getItem('parked_lon');
-            if (lat && lon) window.open(`https://yandex.ru/maps/?rtext=~${lat},${lon}&rtt=auto`, '_blank');
-            else alert("Координаты парковки еще не сохранены. Подключитесь к автомобилю (ESP32) хотя бы один раз, чтобы телефон запомнил локацию.");
+            let lat = localStorage.getItem('parked_lat');
+            let lon = localStorage.getItem('parked_lon');
+            if (lat && lon) {
+                // Универсальная ссылка на Яндекс Карты/Навигатор (прокладывает пеший или авто маршрут к точке)
+                let yandexUrl = `https://yandex.ru/maps/?rtext=~${lat},${lon}&rtt=auto`;
+                window.open(yandexUrl, '_blank');
+            } else {
+                alert("Координаты парковки еще не сохранены. Подключитесь к автомобилю (ESP32) хотя бы один раз, чтобы телефон запомнил локацию.");
+            }
         }
 
+        // ====================================================
+        // ПАРСЕР ГОЛОСОВЫХ СУММ (АКСА УМЕЕТ В МАТЕМАТИКУ)
+        // ====================================================
         function parseSpokenCost(text) {
             let t = text.toLowerCase();
-            t = t.replace(/полторы\s*тысячи/g, "1500").replace(/одна\s*тысяча/g, "1000").replace(/две\s*тысячи/g, "2000").replace(/три\s*тысячи/g, "3000").replace(/четыре\s*тысячи/g, "4000").replace(/пять\s*тысяч/g, "5000");
-            t = t.replace(/\bсто\b/g, "100").replace(/\bдвести\b/g, "200").replace(/\bтриста\b/g, "300").replace(/\bчетыреста\b/g, "400").replace(/\bпятьсот\b/g, "500").replace(/\bшестьсот\b/g, "600").replace(/\bсемьсот\b/g, "700").replace(/\bвосемьсот\b/g, "800").replace(/\bдевятьсот\b/g, "900");
-            let m1 = t.match(/(\d+)\s*(?:тыс[а-я]*|тыщ)\s+(\d+)/); if (m1) return parseInt(m1[1]) * 1000 + parseInt(m1[2]);
-            let m2 = t.match(/(\d+)\s*(?:тыс[а-я]*|тыщ)/); if (m2) return parseInt(m2[1]) * 1000;
-            let m3 = t.match(/(\d+000)\s+(\d{3})/); if (m3) return parseInt(m3[1]) + parseInt(m3[2]);
+            
+            t = t.replace(/полторы\s*тысячи/g, "1500")
+                 .replace(/одна\s*тысяча/g, "1000")
+                 .replace(/две\s*тысячи/g, "2000")
+                 .replace(/три\s*тысячи/g, "3000")
+                 .replace(/четыре\s*тысячи/g, "4000")
+                 .replace(/пять\s*тысяч/g, "5000");
+
+            t = t.replace(/\bсто\b/g, "100").replace(/\bдвести\b/g, "200").replace(/\bтриста\b/g, "300")
+                 .replace(/\bчетыреста\b/g, "400").replace(/\bпятьсот\b/g, "500").replace(/\bшестьсот\b/g, "600")
+                 .replace(/\bсемьсот\b/g, "700").replace(/\bвосемьсот\b/g, "800").replace(/\bдевятьсот\b/g, "900");
+
+            let m1 = t.match(/(\d+)\s*(?:тыс[а-я]*|тыщ)\s+(\d+)/);
+            if (m1) return parseInt(m1[1]) * 1000 + parseInt(m1[2]);
+
+            let m2 = t.match(/(\d+)\s*(?:тыс[а-я]*|тыщ)/);
+            if (m2) return parseInt(m2[1]) * 1000;
+
+            let m3 = t.match(/(\d+000)\s+(\d{3})/);
+            if (m3) return parseInt(m3[1]) + parseInt(m3[2]);
+
             t = t.replace(/(\d)\s+(?=\d{3}\b)/g, "$1");
-            let mSimple = t.match(/\d+/); return mSimple ? parseInt(mSimple[0]) : 0;
+            
+            let mSimple = t.match(/\d+/);
+            return mSimple ? parseInt(mSimple[0]) : 0;
         }
 
+        // ====================================================
+        // ГОЛОСОВОЙ АССИСТЕНТ (АКСА)
+        // ====================================================
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
@@ -698,26 +872,26 @@
                     if (speechResult.includes(dynCmds[i].phrase)) {
                         sendWsCmd("id:" + dynCmds[i].canId);
                         
+                        let replyStr = dynCmds[i].reply;
                         let now = new Date();
                         let hh = String(now.getHours()).padStart(2, '0');
                         let mm = String(now.getMinutes()).padStart(2, '0');
                         
-                        let replyStr = dynCmds[i].reply;
-                        replyStr = replyStr.replaceAll("{TIME}", hh + ":" + mm)
-                                           .replaceAll("{ENG_TEMP}", (sysData.temp > -40) ? sysData.temp : "неизвестно")
-                                           .replaceAll("{OUT_TEMP}", envData.temp)
-                                           .replaceAll("{WEATHER}", envData.weatherDesc)
-                                           .replaceAll("{HUMIDITY}", envData.hum)
-                                           .replaceAll("{CITY}", envData.city)
-                                           .replaceAll("{FUEL}", sysData.fuel)
-                                           .replaceAll("{RPM}", sysData.rpm)
-                                           .replaceAll("{MILEAGE}", sysData.mileage)
-                                           .replaceAll("{SPEED}", envData.speed)
-                                           .replaceAll("{BATTERY}", batData.level)
-                                           .replaceAll("{USD}", finData.usd)
-                                           .replaceAll("{EUR}", finData.eur)
-                                           .replaceAll("{BTC}", finData.btc)
-                                           .replaceAll("{NEWS}", topNews);
+                        replyStr = replyStr.replaceAll("{TIME}", hh + ":" + mm);
+                        replyStr = replyStr.replaceAll("{ENG_TEMP}", (sysData.temp > -40) ? sysData.temp : "неизвестно");
+                        replyStr = replyStr.replaceAll("{OUT_TEMP}", envData.temp);
+                        replyStr = replyStr.replaceAll("{WEATHER}", envData.weatherDesc);
+                        replyStr = replyStr.replaceAll("{HUMIDITY}", envData.hum);
+                        replyStr = replyStr.replaceAll("{CITY}", envData.city);
+                        replyStr = replyStr.replaceAll("{FUEL}", sysData.fuel);
+                        replyStr = replyStr.replaceAll("{RPM}", sysData.rpm);
+                        replyStr = replyStr.replaceAll("{MILEAGE}", sysData.mileage);
+                        replyStr = replyStr.replaceAll("{SPEED}", envData.speed);
+                        replyStr = replyStr.replaceAll("{BATTERY}", batData.level);
+                        replyStr = replyStr.replaceAll("{USD}", finData.usd);
+                        replyStr = replyStr.replaceAll("{EUR}", finData.eur);
+                        replyStr = replyStr.replaceAll("{BTC}", finData.btc);
+                        replyStr = replyStr.replaceAll("{NEWS}", topNews); 
                         
                         speak(replyStr); matchedDynCmd = true; break;
                     }
@@ -725,8 +899,11 @@
                 if (matchedDynCmd) return;
                 
                 if(speechResult.includes('тихо') || speechResult.includes('стоп')) { window.speechSynthesis.cancel(); }
+                
                 else if(speechResult.includes('сколько потратил') || speechResult.includes('какие расходы')) {
-                    let currentMonth = new Date().getMonth(); let currentYear = new Date().getFullYear(); let monthTotal = 0;
+                    let currentMonth = new Date().getMonth();
+                    let currentYear = new Date().getFullYear();
+                    let monthTotal = 0;
                     garageLogs.forEach(log => {
                         let logDate = new Date(log.timestamp);
                         if (logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear) monthTotal += parseInt(log.cost);
@@ -737,9 +914,11 @@
                 }
                 else if(speechResult.includes('когда замен') && speechResult.includes('масл')) {
                     let currentMileage = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
-                    if (lastOilChangeMileage === 0) { speak("У меня нет данных о прошлой замене масла. Добавьте запись в журнал."); } 
-                    else {
-                        let driven = currentMileage - lastOilChangeMileage; let remain = 10000 - driven;
+                    if (lastOilChangeMileage === 0) {
+                        speak("У меня нет данных о прошлой замене масла. Добавьте запись в журнал.");
+                    } else {
+                        let driven = currentMileage - lastOilChangeMileage;
+                        let remain = 10000 - driven;
                         if (remain <= 0) speak("Внимание! Интервал замены масла превышен. Срочно планируйте техническое обслуживание.");
                         else speak(`По моим расчетам, до замены масла осталось ${remain} километров.`);
                     }
@@ -747,6 +926,7 @@
                 }
                 else if(speechResult.includes('добавь') || speechResult.includes('запиши')) {
                     let cost = parseSpokenCost(speechResult);
+                    
                     if (cost > 0) {
                         let cat = "Прочее";
                         if(speechResult.includes('бензин') || speechResult.includes('заправк')) cat = "Бензин";
@@ -757,23 +937,47 @@
                         
                         let desc = speechResult.replace(/(добавь|запиши|расход|потратил|рублей|рубля|рубль|тысяч|тысячи|тысяча|тыщ|полторы|сто|двести|триста|четыреста|пятьсот|шестьсот|семьсот|восемьсот|девятьсот)/g, '').replace(/\d+/g, '').trim();
                         if (desc === "") desc = "Голосовая запись";
+                        
                         let currentMil = sysData.mileage || parseInt(localStorage.getItem('last_known_mileage')) || 0;
-                        let log = { id: Date.now(), timestamp: new Date().toISOString(), category: cat, desc: desc.charAt(0).toUpperCase() + desc.slice(1), cost: cost, mileage: currentMil };
-                        garageLogs.unshift(log); localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
-                        if ((cat === "ТО" || cat === "Ремонт") && desc.includes("масл")) { lastOilChangeMileage = currentMil; localStorage.setItem('last_oil_change', lastOilChangeMileage); }
-                        renderLogs(); updateGarageDashboard(); switchTab('garage', document.querySelectorAll('.nav-item')[1]);
+                        
+                        let log = {
+                            id: Date.now(),
+                            timestamp: new Date().toISOString(),
+                            category: cat,
+                            desc: desc.charAt(0).toUpperCase() + desc.slice(1),
+                            cost: cost,
+                            mileage: currentMil
+                        };
+
+                        garageLogs.unshift(log);
+                        localStorage.setItem('garage_logs', JSON.stringify(garageLogs));
+                        
+                        if ((cat === "ТО" || cat === "Ремонт") && desc.includes("масл")) {
+                            lastOilChangeMileage = currentMil;
+                            localStorage.setItem('last_oil_change', lastOilChangeMileage);
+                        }
+                        
+                        renderLogs();
+                        updateGarageDashboard();
+                        switchTab('garage', document.querySelectorAll('.nav-item')[1]);
                         speak(`Записала в журнал. Категория: ${cat}, сумма: ${cost} рублей.`);
-                    } else { speak("Я не расслышала сумму. Повторите команду и обязательно назовите цифры."); }
+                    } else {
+                        speak("Я не расслышала сумму. Повторите команду и обязательно назовите цифры.");
+                    }
                 }
+                
                 else if(speechResult.includes('проверь ошибк') || speechResult.includes('сканируй')) {
                     speak("Запускаю диагностику блоков двигателя и приборной панели.");
                     switchTab('dtc', document.querySelectorAll('.nav-item')[3]);
                     readDTC();
                     setTimeout(() => {
-                        if (activeErrors.length === 0) { speak("Диагностика завершена. Ошибок в системе не обнаружено, всё чисто."); } 
-                        else {
+                        if (activeErrors.length === 0) {
+                            speak("Диагностика завершена. Ошибок в системе не обнаружено, всё чисто.");
+                        } else {
                             let text = "Обнаружено " + activeErrors.length + " ошибок. ";
-                            activeErrors.forEach(err => { text += "Код " + err.code + ". " + (customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный код неисправности.") + ". "; });
+                            activeErrors.forEach(err => {
+                                text += "Код " + err.code + ". " + (customErrorsDB[err.code] || fordErrorsDB[err.code] || "Неизвестный код неисправности.") + ". ";
+                            });
                             speak(text);
                         }
                     }, 2000);
@@ -784,30 +988,39 @@
                     clearDTC();
                     setTimeout(() => speak("Память успешно очищена. Если ошибка вернется, проверьте железо."), 2000);
                 }
+
+                // === НОВЫЕ КОМАНДЫ ДЛЯ СИНХРОНИЗАЦИИ С ПРОШИВКОЙ ===
                 else if(speechResult.includes('статус') || speechResult.includes('диагностик') || speechResult.includes('желез')) {
                     let t = sysData.temp > -40 ? sysData.temp : "неизвестно сколько";
                     speak(`Диагностика. Двигатель ${t} градусов. Бензина ${sysData.fuel} литров. Память процессора ${sysData.ram} килобайт. Температура чипа ${sysData.cputemp} градусов.`);
-                    sendWsCmd('set:1'); switchTab('screens', document.querySelectorAll('.nav-item')[2]);
+                    sendWsCmd('set:1');
+                    switchTab('screens', document.querySelectorAll('.nav-item')[2]);
                 }
                 else if(speechResult.includes('погод') || speechResult.includes('бортом') || speechResult.includes('координат')) {
                     speak(`За бортом ${envData.temp} градусов. Скорость по джи пи эс ${envData.speed} километров в час.`);
-                    sendWsCmd('set:3'); switchTab('screens', document.querySelectorAll('.nav-item')[2]);
+                    sendWsCmd('set:3');
+                    switchTab('screens', document.querySelectorAll('.nav-item')[2]);
                 }
                 else if(speechResult.includes('сводк') || speechResult.includes('брифинг') || speechResult.includes('мир')) {
                     speak(`Сводка. Доллар по ${finData.usd} рублей. Евро по ${finData.eur} рублей. Биткоин ${finData.btc} долларов. Главная новость: ${topNews}`);
-                    sendWsCmd('set:4'); switchTab('screens', document.querySelectorAll('.nav-item')[2]);
+                    sendWsCmd('set:4');
+                    switchTab('screens', document.querySelectorAll('.nav-item')[2]);
                 }
                 else if(speechResult.includes('гаджет') || speechResult.includes('заряд')) {
                     speak(`Заряд телефона ${batData.level} процентов. ${batData.charging ? "Зарядка подключена." : "Работа от батареи."}`);
                 }
                 else if(speechResult.includes('главн') || speechResult.includes('домой')) {
                     speak("Включаю главный экран");
-                    sendWsCmd('set:0'); switchTab('screens', document.querySelectorAll('.nav-item')[2]);
+                    sendWsCmd('set:0');
+                    switchTab('screens', document.querySelectorAll('.nav-item')[2]);
                 }
                 else if(speechResult.includes('тахометр') || speechResult.includes('оборот')) {
                     speak("Переключаю на тахометр");
-                    sendWsCmd('set:2'); switchTab('screens', document.querySelectorAll('.nav-item')[2]);
+                    sendWsCmd('set:2');
+                    switchTab('screens', document.querySelectorAll('.nav-item')[2]);
                 }
+                // === КОНЕЦ НОВЫХ КОМАНД ===
+
                 else if(speechResult.includes('дневной')) { speak("Включаю дневной режим."); sendWsCmd('daymode:1'); }
                 else if(speechResult.includes('ночной')) { speak("Включаю ночной режим."); sendWsCmd('daymode:0'); }
                 else if(speechResult === 'акса' || speechResult.includes('акс')) { speak("Да, Женя. Я на связи."); }
@@ -820,52 +1033,41 @@
             };
         }
 
+        // ====================================================
+        // ФОНОВЫЕ ЗАДАЧИ
+        // ====================================================
         setInterval(async () => {
             if(ws && ws.readyState === 1 && navigator.getBattery) {
                 const bat = await navigator.getBattery();
-                batData.level = Math.round(bat.level * 100); batData.charging = bat.charging;
-                ws.send("bat:" + batData.level + "," + (bat.charging ? 1 : 0));
+                ws.send("bat:" + Math.round(bat.level * 100) + "," + (bat.charging ? 1 : 0));
             }
         }, 3000);
 
         async function fetchGlobalData() {
             try {
-                const btcRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"); const btcData = await btcRes.json();
                 const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/USD"); const rateData = await rateRes.json();
-                let rub = rateData.rates.RUB; let eur = rub / rateData.rates.EUR;
-                finData.usd = Math.round(rub); finData.eur = Math.round(eur); finData.btc = Math.round(btcData.price);
-                if(ws && ws.readyState === 1) ws.send("fin:" + finData.usd + "," + finData.eur + "," + finData.btc);
+                let rub = rateData.rates.RUB;
+                let eur = rub / rateData.rates.EUR;
+                finData.usd = Math.round(rub);
+                finData.eur = Math.round(eur);
+                
+                const btcRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"); const btcData = await btcRes.json();
+                finData.btc = Math.round(btcData.price);
 
                 const newsRes = await fetch("https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news"); const newsData = await newsRes.json();
-                if(newsData.status === "ok" && newsData.items.length > 0) {
-                    topNews = newsData.items[0].title;
-                    if(ws && ws.readyState === 1 && newsData.items.length >= 3) ws.send("nws:" + newsData.items[0].title + " *** " + newsData.items[1].title + " *** " + newsData.items[2].title + " *** ");
-                }
+                if(newsData.status === "ok") topNews = newsData.items[0].title;
             } catch(e) {}
         }
         setInterval(fetchGlobalData, 600000); setTimeout(fetchGlobalData, 2000);
 
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(function(pos) {
-                envData.lat = pos.coords.latitude.toFixed(6); envData.lon = pos.coords.longitude.toFixed(6);
+                // ДОБАВЛЕНО: Сохраняем точные широту и долготу в переменные системы
+                envData.lat = pos.coords.latitude.toFixed(6);
+                envData.lon = pos.coords.longitude.toFixed(6);
                 envData.speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0; 
                 document.getElementById('speed').innerText = envData.speed;
                 if(ws && ws.readyState === 1) ws.send("gps:" + envData.lat + "," + envData.lon + "," + envData.speed);
-
-                if(!window.weatherFetched) {
-                    window.weatherFetched = true; setInterval(() => { window.weatherFetched = false; }, 900000);
-                    fetch("https://api.open-meteo.com/v1/forecast?latitude="+envData.lat+"&longitude="+envData.lon+"&current=temperature_2m,relative_humidity_2m,weather_code")
-                    .then(r => r.json())
-                    .then(wData => {
-                        envData.temp = wData.current.temperature_2m; envData.hum = wData.current.relative_humidity_2m;
-                        envData.weatherDesc = getWeatherDesc(wData.current.weather_code);
-                        fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+envData.lat+"&longitude="+envData.lon+"&localityLanguage=ru")
-                        .then(r => r.json()).then(geo => {
-                            envData.city = geo.city || geo.locality || "Локация неизвестна";
-                            if(ws && ws.readyState === 1) ws.send("wea:" + envData.temp + "," + wData.current.weather_code + "," + envData.city);
-                        }).catch(e => { if(ws && ws.readyState === 1) ws.send("wea:" + envData.temp + "," + wData.current.weather_code + ",OK"); });
-                    }).catch(e => console.log("Weather error"));
-                }
             }, function(err) {}, { enableHighAccuracy: true });
         }
 
