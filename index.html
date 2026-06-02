@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -333,6 +334,7 @@
         let topNews = "Нет свежих новостей";
         let isFirstConnect = true;
         let dynCmds = [];
+        let weatherFetched = false;
         
         // База интервалов обслуживания для умных напоминаний (в километрах)
         const serviceIntervals = {
@@ -341,6 +343,20 @@
             "антифриз": 60000,
             "колодк": 40000
         };
+
+        function getWeatherDesc(code) {
+            if(code === 0) return "ясно";
+            if(code === 1 || code === 2) return "переменная облачность";
+            if(code === 3) return "пасмурно";
+            if(code >= 45 && code <= 48) return "туман";
+            if(code >= 51 && code <= 57) return "морось";
+            if(code >= 61 && code <= 67) return "идет дождь";
+            if(code >= 71 && code <= 77) return "идет снег";
+            if(code >= 80 && code <= 82) return "ливень";
+            if(code >= 85 && code <= 86) return "снегопад";
+            if(code >= 95) return "гроза";
+            return "неизвестно";
+        }
 
         // ====================================================
         // БОРТОВОЙ ЖУРНАЛ И УМНЫЕ НАПОМИНАНИЯ
@@ -775,8 +791,6 @@
                 document.getElementById('status-text').innerText = "ПОИСК ESP32";
                 document.getElementById('baud-rate').innerText = "--- кбод";
                 
-                // === АВТОМАТИЧЕСКАЯ ФИКСАЦИЯ ПАРКОВКИ ===
-                // При разрыве связи с платой (глушение авто), сохраняем последние координаты
                 if (envData.lat && envData.lon) {
                     localStorage.setItem('parked_lat', envData.lat);
                     localStorage.setItem('parked_lon', envData.lon);
@@ -787,8 +801,15 @@
         }
 
         function sendWsCmd(cmd) {
-            if(ws && ws.readyState === 1) { ws.send(cmd); } 
-            else { fetch('http://' + getEspIp() + '/cmd?act=' + cmd).catch(e=>{}); }
+            if(ws && ws.readyState === 1) { 
+                ws.send(cmd); 
+            } else { 
+                if(cmd.startsWith('set:')) { 
+                    fetch('http://' + getEspIp() + '/set?s=' + cmd.split(':')[1]).catch(e=>{}); 
+                } else { 
+                    fetch('http://' + getEspIp() + '/cmd?act=' + cmd).catch(e=>{}); 
+                }
+            }
         }
 
         function speak(text) {
@@ -806,7 +827,6 @@
             let lat = localStorage.getItem('parked_lat');
             let lon = localStorage.getItem('parked_lon');
             if (lat && lon) {
-                // Универсальная ссылка на Яндекс Карты/Навигатор (прокладывает пеший или авто маршрут к точке)
                 let yandexUrl = `https://yandex.ru/maps/?rtext=~${lat},${lon}&rtt=auto`;
                 window.open(yandexUrl, '_blank');
             } else {
@@ -867,19 +887,41 @@
                 document.getElementById('mic-btn').style.borderColor = '#aa00ff';
                 document.getElementById('mic-text').innerText = 'АКСА: ОЖИДАНИЕ КОМАНДЫ';
                 
+                // 1. ПРОВЕРКА ПОЛЬЗОВАТЕЛЬСКИХ МАКРОСОВ
                 let matchedDynCmd = false;
                 for (let i = 0; i < dynCmds.length; i++) {
                     if (speechResult.includes(dynCmds[i].phrase)) {
                         sendWsCmd("id:" + dynCmds[i].canId);
                         let replyStr = dynCmds[i].reply;
-                        replyStr = replyStr.replaceAll("{RPM}", sysData.rpm).replaceAll("{SPEED}", envData.speed).replaceAll("{NEWS}", topNews);
+                        
+                        let now = new Date();
+                        let hh = String(now.getHours()).padStart(2, '0');
+                        let mm = String(now.getMinutes()).padStart(2, '0');
+                        replyStr = replyStr.replaceAll("{TIME}", hh + ":" + mm);
+                        replyStr = replyStr.replaceAll("{ENG_TEMP}", (sysData.temp > -40) ? sysData.temp : "неизвестно");
+                        replyStr = replyStr.replaceAll("{OUT_TEMP}", envData.temp);
+                        replyStr = replyStr.replaceAll("{WEATHER}", envData.weatherDesc);
+                        replyStr = replyStr.replaceAll("{HUMIDITY}", envData.hum);
+                        replyStr = replyStr.replaceAll("{CITY}", envData.city);
+                        replyStr = replyStr.replaceAll("{FUEL}", sysData.fuel);
+                        replyStr = replyStr.replaceAll("{RPM}", sysData.rpm);
+                        replyStr = replyStr.replaceAll("{MILEAGE}", sysData.mileage);
+                        replyStr = replyStr.replaceAll("{SPEED}", envData.speed);
+                        replyStr = replyStr.replaceAll("{BATTERY}", batData.level);
+                        replyStr = replyStr.replaceAll("{USD}", finData.usd);
+                        replyStr = replyStr.replaceAll("{EUR}", finData.eur);
+                        replyStr = replyStr.replaceAll("{BTC}", finData.btc);
+                        replyStr = replyStr.replaceAll("{NEWS}", topNews);
+
                         speak(replyStr); matchedDynCmd = true; break;
                     }
                 }
                 if (matchedDynCmd) return;
                 
-                if(speechResult.includes('тихо') || speechResult.includes('стоп')) { window.speechSynthesis.cancel(); }
-                
+                // 2. ВСТРОЕННАЯ ЛОГИКА АССИСТЕНТА
+                if(speechResult.includes('тихо') || speechResult.includes('замолчи') || speechResult.includes('стоп')) { 
+                    window.speechSynthesis.cancel(); 
+                }
                 else if(speechResult.includes('сколько потратил') || speechResult.includes('какие расходы')) {
                     let currentMonth = new Date().getMonth();
                     let currentYear = new Date().getFullYear();
@@ -969,46 +1011,144 @@
                     setTimeout(() => speak("Память успешно очищена. Если ошибка вернется, проверьте железо."), 2000);
                 }
 
-                else if(speechResult.includes('дневной')) { speak("Включаю дневной режим."); sendWsCmd('daymode:1'); }
-                else if(speechResult.includes('ночной')) { speak("Включаю ночной режим."); sendWsCmd('daymode:0'); }
+                else if(speechResult.includes('дневной') || speechResult.includes('светлый')) { speak("Включаю дневной режим."); sendWsCmd('daymode:1'); }
+                else if(speechResult.includes('ночной') || speechResult.includes('темный')) { speak("Включаю ночной режим."); sendWsCmd('daymode:0'); }
                 else if(speechResult === 'акса' || speechResult.includes('акс')) { speak("Да, Женя. Я на связи."); }
-                else if(speechResult.includes('создатель')) { speak("Мой инженер — Евгений. Проект Икс Коннект."); }
-                else if(speechResult.includes('привет')) { speak("Привет, Женя! Системы активны."); }
+                else if(speechResult.includes('создатель') || speechResult.includes('кто тебя написал')) { speak("Мой инженер — Евгений. Проект Икс Коннект."); }
+                else if(speechResult.includes('привет') || speechResult.includes('здравствуй')) { speak("Привет, Женя! Системы активны, я к вашим услугам."); }
+                else if(speechResult.includes('как дела')) { speak("Все датчики в норме, напряжение стабильно. Готова к поездке. А как ваше настроение?"); }
+                else if(speechResult.includes('что делаешь')) { speak("Мониторю шину данных Форд Фьюжн и жду ваших команд."); }
+                else if(speechResult.includes('спасибо') || speechResult.includes('молодец')) { speak("Рада стараться! Обращайтесь."); }
+                else if(speechResult.includes('спокойной ночи') || speechResult.includes('завтра')) { speak("Доброй ночи. Перехожу в спящий режим."); }
+                else if(speechResult.includes('поехали') || speechResult.includes('запуск')) {
+                    speak("Системы в норме. Телеметрия запущена. Хорошей дороги, Женя.");
+                    sendWsCmd('set:0'); fetch('http://' + getEspIp() + '/sys?b=255').catch(e=>{});
+                }
+                else if(speechResult.includes('приехали') || speechResult.includes('глуши')) {
+                    speak("Поездка завершена. Не забудьте заблокировать машину.");
+                    sendWsCmd('set:1'); fetch('http://' + getEspIp() + '/sys?b=25').catch(e=>{});
+                }
+                else if(speechResult.includes('статус') || speechResult.includes('диагностик') || speechResult.includes('желез')) {
+                    let t = sysData.temp > -40 ? sysData.temp : "неизвестно сколько";
+                    speak(`Диагностика. Двигатель ${t} градусов. Бензина ${sysData.fuel} литров. Память процессора ${sysData.ram || 0} килобайт. Температура чипа ${sysData.cputemp || 0} градусов.`);
+                    sendWsCmd('set:1');
+                }
+                else if(speechResult.includes('погод') || speechResult.includes('бортом') || speechResult.includes('координат')) {
+                    speak(`За бортом ${envData.temp} градусов Цельсия. Скорость по джи пи эс ${envData.speed} километров в час.`);
+                    sendWsCmd('set:3');
+                }
+                else if(speechResult.includes('сводк') || speechResult.includes('брифинг') || speechResult.includes('мир')) {
+                    speak(`Сводка. Доллар по ${finData.usd} рублей. Биткоин ${finData.btc} долларов. Главная новость: ${topNews}`);
+                    sendWsCmd('set:4');
+                }
+                else if(speechResult.includes('гаджет') || speechResult.includes('заряд')) {
+                    speak(`Заряд телефона ${batData.level} процентов. ${batData.charging ? "Зарядка подключена." : "Работа от батареи."}`);
+                }
+                else if(speechResult.includes('главн') || speechResult.includes('домой')) { speak("Главный экран"); sendWsCmd('set:0'); }
+                else if(speechResult.includes('тахометр') || speechResult.includes('оборот')) { speak("Тахометр"); sendWsCmd('set:2'); }
                 else if(speechResult.includes('багажн')) { speak("Открываю багажник"); sendWsCmd('trunk'); }
                 else if(speechResult.includes('разблок')) { speak("Разблокировано"); sendWsCmd('unlock'); }
                 else if(speechResult.includes('заблок') || speechResult.includes('блок')) { speak("Заблокировано"); sendWsCmd('lock'); }
-                else speak("Команда не распознана.");
+                else if(speechResult.includes('максимум') || speechResult.includes('ярк')) { speak("Яркость максимум"); document.getElementById('bright-slider').value = 255; fetch('http://' + getEspIp() + '/sys?b=255').catch(e=>{}); }
+                else if(speechResult.includes('минимум')) { speak("Ночной режим"); document.getElementById('bright-slider').value = 25; fetch('http://' + getEspIp() + '/sys?b=25').catch(e=>{}); }
+                else speak("Команда не распознана, повторите.");
+            };
+            
+            recognition.onerror = (event) => {
+                document.getElementById('mic-text').innerText = 'ОШИБКА МИКРОФОНА';
+                speak("Ошибка микрофона. Проверьте соединение.");
+                setTimeout(()=> { 
+                    document.getElementById('mic-btn').style.background = 'linear-gradient(145deg, #2a004d, #140026)';
+                    document.getElementById('mic-btn').style.borderColor = '#aa00ff';
+                    document.getElementById('mic-text').innerText = 'АКСА: ОЖИДАНИЕ КОМАНДЫ'; 
+                }, 2000);
             };
         }
 
         // ====================================================
-        // ФОНОВЫЕ ЗАДАЧИ
+        // ФОНОВЫЕ ЗАДАЧИ (БАТАРЕЯ, GPS, ФИНАНСЫ, ПОГОДА)
         // ====================================================
         setInterval(async () => {
             if(ws && ws.readyState === 1 && navigator.getBattery) {
                 const bat = await navigator.getBattery();
-                ws.send("bat:" + Math.round(bat.level * 100) + "," + (bat.charging ? 1 : 0));
+                batData.level = Math.round(bat.level * 100);
+                batData.charging = bat.charging;
+                ws.send("bat:" + batData.level + "," + (bat.charging ? 1 : 0));
             }
         }, 3000);
 
         async function fetchGlobalData() {
             try {
-                const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/USD"); const rateData = await rateRes.json();
-                finData.usd = Math.round(rateData.rates.RUB);
-                const newsRes = await fetch("https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news"); const newsData = await newsRes.json();
-                if(newsData.status === "ok") topNews = newsData.items[0].title;
+                const btcRes = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"); 
+                const btcData = await btcRes.json();
+                
+                const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/USD"); 
+                const rateData = await rateRes.json();
+                
+                let rub = rateData.rates.RUB;
+                let eur = rub / rateData.rates.EUR;
+                finData.usd = Math.round(rub);
+                finData.eur = Math.round(eur);
+                finData.btc = Math.round(btcData.price);
+                
+                if(ws && ws.readyState === 1) {
+                    ws.send("fin:" + finData.usd + "," + finData.eur + "," + finData.btc);
+                }
+
+                const newsRes = await fetch("https://api.rss2json.com/v1/api.json?rss_url=https://lenta.ru/rss/news"); 
+                const newsData = await newsRes.json();
+                
+                if(newsData.status === "ok" && newsData.items.length >= 3) {
+                    let n0 = newsData.items[0].title;
+                    let n1 = newsData.items[1].title;
+                    let n2 = newsData.items[2].title;
+                    topNews = n0;
+                    let fullNewsString = n0 + " *** " + n1 + " *** " + n2 + " *** ";
+                    if(ws && ws.readyState === 1) {
+                        ws.send("nws:" + fullNewsString);
+                    }
+                }
             } catch(e) {}
         }
         setInterval(fetchGlobalData, 600000); setTimeout(fetchGlobalData, 2000);
 
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(function(pos) {
-                // ДОБАВЛЕНО: Сохраняем точные широту и долготу в переменные системы
                 envData.lat = pos.coords.latitude.toFixed(6);
                 envData.lon = pos.coords.longitude.toFixed(6);
                 envData.speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0; 
                 document.getElementById('speed').innerText = envData.speed;
                 if(ws && ws.readyState === 1) ws.send("gps:" + envData.lat + "," + envData.lon + "," + envData.speed);
+
+                if(!weatherFetched) {
+                    weatherFetched = true; 
+                    setInterval(() => { weatherFetched = false; }, 900000); // 15 мин задержка для погоды
+                    
+                    let wLat = pos.coords.latitude.toFixed(4);
+                    let wLon = pos.coords.longitude.toFixed(4);
+                    
+                    fetch("https://api.open-meteo.com/v1/forecast?latitude="+wLat+"&longitude="+wLon+"&current=temperature_2m,relative_humidity_2m,weather_code")
+                    .then(r => r.json())
+                    .then(wData => {
+                        let temp = wData.current.temperature_2m;
+                        let code = wData.current.weather_code;
+                        let hum = wData.current.relative_humidity_2m;
+                        envData.temp = temp;
+                        envData.hum = hum;
+                        envData.weatherDesc = getWeatherDesc(code);
+
+                        // ЗАМЕНА НА en ЧТОБЫ ГОРОД ПЕРЕДАВАЛСЯ ЛАТИНИЦЕЙ
+                        fetch("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude="+wLat+"&longitude="+wLon+"&localityLanguage=en")
+                        .then(r => r.json())
+                        .then(geo => {
+                            let city = geo.city || geo.locality || "GEO OK";
+                            envData.city = city;
+                            if(ws && ws.readyState === 1) ws.send("wea:" + temp + "," + code + "," + city);
+                        }).catch(e => {
+                            if(ws && ws.readyState === 1) ws.send("wea:" + temp + "," + code + ",GEO OK");
+                        });
+                    }).catch(e => console.log("Ошибка погоды"));
+                }
             }, function(err) {}, { enableHighAccuracy: true });
         }
 
@@ -1016,3 +1156,6 @@
     </script>
 </body>
 </html>
+
+
+```
